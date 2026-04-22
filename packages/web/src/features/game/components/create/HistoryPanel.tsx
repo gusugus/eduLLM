@@ -39,7 +39,7 @@ const HistoryPanel = ({ history, onDownload }: Props) => (
           </div>
 
           <Button className="px-4" onClick={() => onDownload(run.id)}>
-            Download CSV
+            Descarga CSV
           </Button>
         </div>
       ))}
@@ -48,4 +48,3 @@ const HistoryPanel = ({ history, onDownload }: Props) => (
 )
 
 export default HistoryPanel
-
