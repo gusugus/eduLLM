@@ -1,57 +1,56 @@
-import Button from "@mindbuzz/web/features/game/components/Button"
-import Form from "@mindbuzz/web/features/game/components/Form"
-import Input from "@mindbuzz/web/features/game/components/Input"
+import Button from "@mindbuzz/web/features/game/components/Button";
+import Form from "@mindbuzz/web/features/game/components/Form";
+import Input from "@mindbuzz/web/features/game/components/Input";
 import {
   useEvent,
   useSocket,
-} from "@mindbuzz/web/features/game/contexts/socketProvider"
-import { usePlayerStore } from "@mindbuzz/web/features/game/stores/player"
-import { type KeyboardEvent, useEffect, useRef, useState } from "react"
-import { useSearchParams } from "react-router"
+} from "@mindbuzz/web/features/game/contexts/socketProvider";
+import { usePlayerStore } from "@mindbuzz/web/features/game/stores/player";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 
 const Room = () => {
-  const { socket, isConnected } = useSocket()
-  const { join } = usePlayerStore()
-  const [invitation, setInvitation] = useState("")
-  const [searchParams] = useSearchParams()
-  const hasJoinedRef = useRef(false)
+  const { socket, isConnected } = useSocket();
+  const { join } = usePlayerStore();
+  const [invitation, setInvitation] = useState("");
+  const [searchParams] = useSearchParams();
+  const hasJoinedRef = useRef(false);
 
   const handleJoin = () => {
-    socket?.emit("player:join", invitation)
-  }
+    socket?.emit("player:join", invitation);
+  };
 
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Enter") {
-      handleJoin()
+      handleJoin();
     }
-  }
+  };
 
   useEvent("game:successRoom", (gameId) => {
-    join(gameId)
-  })
+    join(gameId);
+  });
 
   useEffect(() => {
-    const pinCode = searchParams.get("pin")
+    const pinCode = searchParams.get("pin");
 
     if (!isConnected || !pinCode || hasJoinedRef.current) {
-      return
+      return;
     }
 
-    socket?.emit("player:join", pinCode)
-    hasJoinedRef.current = true
-  }, [searchParams, isConnected, socket])
+    socket?.emit("player:join", pinCode);
+    hasJoinedRef.current = true;
+  }, [searchParams, isConnected, socket]);
 
   return (
     <Form>
       <Input
         onChange={(e) => setInvitation(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="PIN Code here"
+        placeholder="agrega tu codigo aqui"
       />
       <Button onClick={handleJoin}>Submit</Button>
     </Form>
-  )
-}
+  );
+};
 
-export default Room
-
+export default Room;
