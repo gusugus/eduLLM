@@ -85,6 +85,26 @@ Este documento centraliza todas las tareas, ideas y planes de implementación a 
 
 ---
 
-## 3. Ideas futuras
+---
+
+## 3. Tutor Personalizado por Transparencia (TPT)
+
+- [x] **Módulo de IA y Retroalimentación**
+  - [x] Implementar el servicio `TutorService` para la integración con LLM (ChatGPT/OpenAI) pero implementado inicialmente con un modelo local Gemma4 E2B.
+    - **💡 Propósito:** Gestionar la comunicación con la IA para generar las explicaciones de los errores.
+    - **✅ Logro:** Se creó `packages/socket/src/services/tutorService.ts` que consume SSE desde el puerto 5000 y se integra con el servidor de sockets en el puerto 3001. Se creó un laboratorio de pruebas en el puerto 3002.
+  - [/] Desarrollar el "Módulo Guardián" (Restricción Temática) mediante System Prompts.
+    - **💡 Propósito:** Asegurar que el tutor no se desvíe del tema académico de la pregunta fallada durante la interacción libre.
+    - **🚧 En progreso:** Integrando el envío de preguntas fallidas como contexto al modelo de IA.
+  - [x] Crear la interfaz de Chat de Tutoría Post-Test en el frontend del estudiante.
+    - **💡 Propósito:** Permitir al alumno interactuar con el tutor 1:1 después de ver sus resultados.
+    - **✅ Logro:** Se implementó una interfaz premium de prueba en `scratch/tutor-test/index.html`.
+  - **📍 Archivos Afectados:** `packages/socket/src/services/tutorService.ts` (nuevo), `packages/socket/src/index.ts` (modificado), `scratch/tutor-test/` (nuevo).
+  - **⚠️ Impacto:** La comunicación es asíncrona y mediante streaming, optimizando la percepción de velocidad.
+  - **🧪 Pruebas:** Verificación manual exitosa mediante el puerto 3002 enviando mensajes al modelo local.
+
+---
+
+## 4. Ideas futuras
 
 - [ ] ...

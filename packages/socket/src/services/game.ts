@@ -13,6 +13,7 @@ import type { Status, StatusDataMap } from "@mindbuzz/common/types/game/status"
 import { usernameValidator } from "@mindbuzz/common/validators/auth"
 import History from "@mindbuzz/socket/services/history"
 import Registry from "@mindbuzz/socket/services/registry"
+import TutorService from "@mindbuzz/socket/services/tutorService"
 import { createInviteCode, timeToPoint } from "@mindbuzz/socket/utils/game"
 import sleep from "@mindbuzz/socket/utils/sleep"
 import { v4 as uuid } from "uuid"
@@ -516,6 +517,19 @@ class Game {
 
         const points =
           playerAnswer && isCorrect ? Math.round(playerAnswer.points) : 0
+
+        if (!isCorrect) {
+          TutorService.getInstance().addFailedQuestion(
+            player.clientId,
+            {
+              question: question.question,
+              answers: question.answers,
+              correctAnswer: question.solutions.map((s) => question.answers[s]),
+              playerAnswer: playerAnswer && playerAnswer.answerId >= 0 ? question.answers[playerAnswer.answerId] : "No respondió",
+            },
+            this.quizz.subject
+          )
+        }
 
         player.points += points
 

@@ -7,6 +7,7 @@ import Game from "@mindbuzz/socket/services/game"
 import History from "@mindbuzz/socket/services/history"
 import OidcAuth from "@mindbuzz/socket/services/oidcAuth"
 import Registry from "@mindbuzz/socket/services/registry"
+import TutorService from "@mindbuzz/socket/services/tutorService"
 import { withGame } from "@mindbuzz/socket/utils/game"
 import fs from "fs"
 import { createServer, type IncomingMessage, type ServerResponse } from "http"
@@ -216,6 +217,10 @@ const httpServer = createServer((req, res) => {
 const io: Server = new ServerIO(httpServer, {
   path: "/ws",
   maxHttpBufferSize: 25 * 1024 * 1024,
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 })
 
 Config.init()
@@ -792,6 +797,15 @@ io.on("connection", (socket) => {
       game.selectAnswer(socket, data.answerKey),
     ),
   )
+
+  socket.on("tutor:ask", ({ sessionId, message, history, preguntas, materia }) => {
+    TutorService.getInstance().askTutor(socket, sessionId, message, history, preguntas, materia)
+  })
+
+  socket.on("tutor:getFailedQuestions", ({ sessionId }) => {
+    const failedQuestions = TutorService.getInstance().getFailedQuestions(sessionId)
+    socket.emit("tutor:failedQuestions", { questions: failedQuestions })
+  })
 
   socket.on("manager:abortQuiz", ({ gameId }) =>
     withGame(gameId, socket, (game) => game.abortRound(socket)),

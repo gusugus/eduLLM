@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindBuzz - Tutor Test Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Plus+Jakarta+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.4);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #10b981;
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            height: 80vh;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        header {
+            padding: 24px 32px;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #818cf8, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #ef4444;
+            box-shadow: 0 0 8px #ef4444;
+            transition: all 0.3s ease;
+        }
+
+        .status-dot.connected {
+            background-color: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+        }
+
+        #chat-window {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--glass-border) transparent;
+        }
+
+        #chat-window::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #chat-window::-webkit-scrollbar-thumb {
+            background: var(--glass-border);
+            border-radius: 10px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 16px 20px;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            position: relative;
+            animation: messageSlide 0.4s ease-out;
+        }
+
+        @keyframes messageSlide {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: white;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .message.tutor {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-bottom-left-radius: 4px;
+        }
+
+        .typing-indicator {
+            font-style: italic;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+
+        footer {
+            padding: 24px 32px;
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.5);
+            padding: 8px;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            transition: all 0.3s ease;
+        }
+
+        .input-group:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-glow);
+        }
+
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 12px;
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px var(--primary-glow);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .debug-info {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>MindBuzz Tutor Lab</h1>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <label id="toggle-questions-label" style="display: none; font-size: 0.85rem; color: var(--text-muted); cursor: pointer; align-items: center;">
+                    <input type="checkbox" id="toggle-questions-check" style="margin-right: 4px;"> Ver errores
+                </label>
+                <div class="status">
+                    <div id="status-dot" class="status-dot"></div>
+                    <span id="status-text">Desconectado</span>
+                </div>
+            </div>
+        </header>
+
+        <div id="failed-questions-panel" style="display: none; padding: 16px; background: rgba(239, 68, 68, 0.05); border-bottom: 1px solid rgba(239, 68, 68, 0.2); max-height: 200px; overflow-y: auto;">
+            <h4 style="color: #ef4444; margin-bottom: 8px; font-size: 0.9rem;">Tus respuestas incorrectas:</h4>
+            <ul id="failed-questions-list" style="list-style-type: none; padding: 0; font-size: 0.85rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 8px;">
+            </ul>
+        </div>
+
+        <div id="chat-window">
+            <div class="message tutor">
+                ¡Hola! Soy tu tutor de MindBuzz. ¿En qué puedo ayudarte hoy con tus estudios?
+            </div>
+        </div>
+
+        <footer>
+            <div id="failed-questions-preview" style="display:none; margin-bottom: 12px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; font-size: 0.8rem;">
+                <strong>⚠️ Contexto de errores activo:</strong> Se enviarán las preguntas fallidas registradas.
+            </div>
+            <form id="chat-form">
+                <div class="input-group">
+                    <input type="text" id="user-input" placeholder="Escribe tu duda aquí..." autocomplete="off">
+                    <button type="button" id="toggle-context" title="Simular contexto de errores" style="background: transparent; border: 1px solid var(--glass-border); padding: 8px; width: auto; margin-right: 4px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    </button>
+                    <button type="submit" id="send-btn">
+                        Enviar
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                </div>
+            </form>
+        </footer>
+    </div>
+
+    <div class="debug-info">
+        Port: 3002 | SSE Proxy: 5000 | Socket: 3001
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlClientId = urlParams.get('clientId');
+        const clientId = urlClientId || "test-client-" + Math.random().toString(36).substr(2, 9);
+
+        // --- Gestión de Historial por Sesión (localStorage) ---
+        const HISTORY_KEY_PREFIX = 'mindbuzz_tutor_history_';
+        const currentHistoryKey = HISTORY_KEY_PREFIX + clientId;
+
+        // Limpiar otros historiales si cambiamos de sesión (opcional, para no llenar el storage)
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith(HISTORY_KEY_PREFIX) && key !== currentHistoryKey) {
+                localStorage.removeItem(key);
+                console.log('[Tutor] Old session history cleaned:', key);
+            }
+        });
+
+        function getLocalHistory() {
+            try {
+                return JSON.parse(localStorage.getItem(currentHistoryKey)) || [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveToLocalHistory(role, content) {
+            const history = getLocalHistory();
+            history.push({ role, content });
+            // Mantener solo los últimos 10 mensajes
+            localStorage.setItem(currentHistoryKey, JSON.stringify(history.slice(-10)));
+        }
+        // ------------------------------------------------------
+
+        const socket = io("http://localhost:3001", {
+            path: "/ws",
+            auth: {
+                clientId: clientId
+            }
+        });
+
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const chatWindow = document.getElementById('chat-window');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const toggleContextBtn = document.getElementById('toggle-context');
+        const contextPreview = document.getElementById('failed-questions-preview');
+
+        if (urlClientId) {
+            toggleContextBtn.style.display = 'none';
+        }
+
+        let currentTutorMessage = null;
+        let simulateFailedQuestions = false;
+        let accumulatedTutorResponse = ""; // Para guardar en el historial al terminar
+
+        const EXAMPLE_FAILED_QUESTIONS = [
+            {
+                question: "¿Cuál es la capital de Francia?",
+                answers: ["Londres", "París", "Berlín", "Madrid"],
+                correctAnswer: ["París"],
+                playerAnswer: "Londres"
+            }
+        ];
+
+        // Cargar historial previo al iniciar la UI si existe
+        window.addEventListener('DOMContentLoaded', () => {
+            const history = getLocalHistory();
+            if (history.length > 0) {
+                console.log('[Tutor] Loading existing history for session:', clientId);
+                history.forEach(msg => {
+                    const msgEl = createMessageElement(msg.role, msg.content);
+                    chatWindow.appendChild(msgEl);
+                });
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+        });
+
+        toggleContextBtn.addEventListener('click', () => {
+            simulateFailedQuestions = !simulateFailedQuestions;
+            contextPreview.style.display = simulateFailedQuestions ? 'block' : 'none';
+            toggleContextBtn.style.color = simulateFailedQuestions ? '#ef4444' : 'inherit';
+            toggleContextBtn.style.borderColor = simulateFailedQuestions ? '#ef4444' : 'var(--glass-border)';
+        });
+
+        socket.on('connect', () => {
+            statusDot.classList.add('connected');
+            statusText.innerText = 'Conectado';
+            console.log('Connected to socket server');
+            
+            if (urlClientId) {
+                socket.emit('tutor:getFailedQuestions', { sessionId: clientId });
+            }
+        });
+
+        const toggleQuestionsLabel = document.getElementById('toggle-questions-label');
+        const toggleQuestionsCheck = document.getElementById('toggle-questions-check');
+        const failedQuestionsPanel = document.getElementById('failed-questions-panel');
+        const failedQuestionsList = document.getElementById('failed-questions-list');
+
+        socket.on('tutor:failedQuestions', (data) => {
+            console.log('[Tutor] Received failed questions:', data.questions);
+            
+            // Si venimos con un clientId real (no simulado) y no hay preguntas, redirigimos al inicio
+            if (urlClientId && (!data.questions || data.questions.length === 0)) {
+                console.log('[Tutor] No failed questions found, redirecting to start...');
+                window.location.href = '/';
+                return;
+            }
+
+            if (data.questions && data.questions.length > 0) {
+                toggleQuestionsLabel.style.display = 'flex';
+                
+                failedQuestionsList.innerHTML = '';
+                data.questions.forEach((q, index) => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>P${index + 1}:</strong> ${q.question}<br>
+                                  <em>Tu respuesta:</em> <span style="color: #ef4444">${q.playerAnswer}</span><br>
+                                  <em>Correcta:</em> <span style="color: #10b981">${q.correctAnswer.join(', ')}</span>`;
+                    failedQuestionsList.appendChild(li);
+                });
+            }
+        });
+
+        toggleQuestionsCheck.addEventListener('change', (e) => {
+            failedQuestionsPanel.style.display = e.target.checked ? 'block' : 'none';
+        });
+
+        socket.on('disconnect', () => {
+            statusDot.classList.remove('connected');
+            statusText.innerText = 'Desconectado';
+        });
+
+        socket.on('tutor:chunk', (data) => {
+            if (!currentTutorMessage) {
+                currentTutorMessage = createMessageElement('tutor', '');
+                chatWindow.appendChild(currentTutorMessage);
+            }
+            
+            if (data.content) {
+                accumulatedTutorResponse += data.content;
+                const textNode = currentTutorMessage.querySelector('.text-content');
+                textNode.innerText += data.content;
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+        });
+
+        socket.on('tutor:completed', () => {
+            if (accumulatedTutorResponse) {
+                saveToLocalHistory('assistant', accumulatedTutorResponse);
+            }
+            accumulatedTutorResponse = "";
+            currentTutorMessage = null;
+            sendBtn.disabled = false;
+            userInput.disabled = false;
+        });
+
+        socket.on('tutor:error', (data) => {
+            const errorMsg = createMessageElement('tutor', 'Error: ' + data.message);
+            errorMsg.style.color = '#ef4444';
+            chatWindow.appendChild(errorMsg);
+            sendBtn.disabled = false;
+            userInput.disabled = false;
+            currentTutorMessage = null;
+            accumulatedTutorResponse = "";
+        });
+
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Historial antes de enviar
+            const history = getLocalHistory();
+
+            // Add user message to UI and Storage
+            appendUserMessage(message);
+            saveToLocalHistory('user', message);
+            
+            // Send to socket
+            socket.emit('tutor:ask', {
+                sessionId: clientId,
+                message: message,
+                history: history, // Enviamos el historial acumulado
+                preguntas: simulateFailedQuestions ? EXAMPLE_FAILED_QUESTIONS : null,
+                materia: simulateFailedQuestions ? "Geografía" : null
+            });
+
+            userInput.value = '';
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+        });
+
+        function appendUserMessage(text) {
+            const msg = createMessageElement('user', text);
+            chatWindow.appendChild(msg);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function createMessageElement(role, text) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            
+            const content = document.createElement('span');
+            content.className = 'text-content';
+            content.innerText = text;
+            
+            div.appendChild(content);
+            return div;
+        }
+    </script>
+</body>
+</html>

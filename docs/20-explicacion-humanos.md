@@ -15,7 +15,7 @@ Los principales cambios que se están haciendo en el sistema son:
 4. **Historial con Nombres Reales y Apodos en el Juego:** Aunque los estudiantes pueden elegir un "nickname" divertido para que aparezca en la pantalla durante el juego, el sistema usará internamente su **nombre real registrado** para todos los reportes y el historial.
 5. **Seguridad Web Básica:** El sistema recordará la sesión del alumno en su computadora. Si el profesor decide que el login es obligatorio, nadie podrá entrar a jugar si no ha iniciado sesión correctamente.
 6. **Base de Conocimientos (Ciencias Naturales):** Estamos creando un "cerebro" de preguntas sobre Ciencias Naturales. El profesor solo tendrá que elegir un tema (por ejemplo, "La Célula") y el sistema seleccionará automáticamente las preguntas para crear un test al instante.
-7. **Inicio de Sesión Opcional:** El profesor podrá decidir si para una partida específica es **obligatorio loguearse** o si los jugadores pueden entrar como invitados.
+8. **Tutor Personalizado por Transparencia (TPT):** ¡Este es el cambio más innovador! Ahora, cuando un estudiante termine un test y cometa errores, una Inteligencia Artificial (IA) actuará como un tutor privado 24/7. Le explicará exactamente por qué se equivocó y permitirá que el alumno le haga preguntas para profundizar, asegurándose de que siempre se mantengan hablando del tema de la clase.
 
 ---
 
@@ -28,4 +28,5 @@ Implementar estas mejoras trae múltiples ventajas tanto para la administración
 - **Trazabilidad a lo Largo del Tiempo:** Al usar el nombre real para los registros internos, el profesor tiene un historial impecable, sin importar si el alumno cambia su apodo en cada partida.
 - **Ahorro de Tiempo con Automatización:** Con la nueva base de conocimientos de Ciencias Naturales, el profesor ya no tiene que escribir pregunta por pregunta. El sistema lo hace por él, permitiéndole enfocarse en el **análisis del desempeño** de sus alumnos.
 - **Análisis de Situación:** Al tener datos organizados por temas, el profesor podrá ver rápidamente qué conceptos de Ciencias Naturales no han quedado claros en el grupo y reforzarlos.
+- **Aprendizaje del Error (Tutor IA):** Con el TPT, el estudiante no se va a casa con la duda. El tutor de IA cierra la brecha entre "sacar una nota" y "aprender de verdad", convirtiendo cada respuesta incorrecta en una lección personalizada y segura.
 - **Flexibilidad Total (Login Opcional):** El hecho de que el inicio de sesión sea "opcional" garantiza que la plataforma no pierda su agilidad.

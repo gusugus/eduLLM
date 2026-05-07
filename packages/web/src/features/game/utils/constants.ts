@@ -8,6 +8,7 @@ import Result from "@mindbuzz/web/features/game/components/states/Result"
 import Room from "@mindbuzz/web/features/game/components/states/Room"
 import Start from "@mindbuzz/web/features/game/components/states/Start"
 import Wait from "@mindbuzz/web/features/game/components/states/Wait"
+import PlayerFinished from "@mindbuzz/web/features/game/components/states/PlayerFinished"
 
 import { STATUS } from "@mindbuzz/common/types/game/status"
 import Circle from "@mindbuzz/web/features/game/components/icons/Circle"
@@ -42,6 +43,7 @@ export const GAME_STATE_COMPONENTS = {
   [STATUS.SHOW_START]: Start,
   [STATUS.SHOW_RESULT]: Result,
   [STATUS.SHOW_PREPARED]: Prepared,
+  [STATUS.FINISHED]: PlayerFinished,
 }
 
 export const GAME_STATE_COMPONENTS_MANAGER = {
