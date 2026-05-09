@@ -30,6 +30,7 @@ createRoot(document.getElementById("root")!).render(
 /                       → GameLayout
 ├── /                   → AuthLayout
 │   ├── /               → PlayerAuthPage   (jugador: ingresa código y username)
+│   ├── /login          → StudentLoginPage (login para estudiantes en BD)
 │   └── /manager        → AuthManagerPage  (manager: login + dashboard completo)
 │
 ├── /party/:gameId      → PlayerGamePage   (jugador: partida activa)
@@ -69,8 +70,11 @@ Layout visual de la sección de autenticación. Contiene el **Outlet** para `Pla
 
 ## PlayerAuthPage — `pages/game/auth/page.tsx`
 
-**Ruta:** `/`  
-**Quién lo ve:** Jugadores que quieren unirse a una partida.
+Punto de entrada para los **jugadores**.
+
+## StudentLoginPage — `pages/game/auth/studentLogin/page.tsx`
+
+Login exclusivo contra la base de datos PostgreSQL usando el endpoint `/api/students/login`. Guarda la sesión persistentemente.
 
 Flujo:
 1. Muestra formulario de código de sala (componente `join/Room.tsx`)

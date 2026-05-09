@@ -13,16 +13,18 @@ const PlayerAuthPage = () => {
   const { player, gameId, reset } = usePlayerStore()
 
   useEffect(() => {
-    // Si al cargar esta página detectamos que ya hay un username guardado,
-    // es una sesión de una partida anterior. La limpiamos para pedir el PIN de nuevo.
-    if (player?.username) {
+    if (player?.username && !player?.idEstudiante) {
       reset()
+    } else if (player?.idEstudiante && gameId) {
+      // Limpiamos el gameId para que ingrese un nuevo PIN
+      usePlayerStore.setState({ gameId: null, status: null })
     }
   }, [])
 
   useEffect(() => {
-    // Si tenemos el estado de 'player' pero no hay gameId, es un estado inconsistente.
-    if (player && !gameId) {
+    // Si tenemos el estado de 'player' pero no hay gameId,
+    // y NO es un estudiante, es un estado inconsistente.
+    if (player && !player.idEstudiante && !gameId) {
       reset()
     }
   }, [player, gameId, reset])

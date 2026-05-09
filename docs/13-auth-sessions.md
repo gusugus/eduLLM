@@ -156,16 +156,17 @@ Ver [08-service-oidc](./08-service-oidc.md) para el flujo completo en el servido
 
 ---
 
-## Sesión de Jugadores — Sin autenticación real
+## Sesión de Jugadores — Sin autenticación real (Excepto Estudiantes)
 
-Los jugadores NO se autentican. Su identidad es:
+Los jugadores **invitados** (anónimos) NO tienen autenticación con contraseña. 
+Los **estudiantes** usan credenciales validadas contra la BD PostgreSQL y retienen su `idEstudiante`.
 
-| Dato | Dónde | Cuándo se crea |
-|------|-------|---------------|
-| `clientId` | `localStorage["client_id"]` | Primera visita al sitio |
-| `username` | `localStorage["player-session"]` (Zustand) | Al unirse a una partida |
-| `gameId` | `localStorage["player-session"]` (Zustand) | Al unirse a una partida |
-| `socket.id` | En memoria, cambia en cada conexión | Cada vez que conecta el socket |
+Se identifican mediante 3 variables:
+
+1. **`clientId`**: UUID v7 almacenado en `localStorage["client_id"]`.
+2. **`idEstudiante`** (opcional): Extraído de la base de datos si inicia sesión.
+3. **Username**: Elegido por el jugador al entrar a la sala, o asociado al estudiante.
+4. **`socket.id`**: El ID temporal de la conexión WebSocket actual.
 
 ### Reconexión del jugador
 
@@ -197,6 +198,8 @@ El servidor identifica al jugador por `clientId` (del handshake) y `gameId`. Si 
 |--------|------------|
 | Manager en servidor | Proceso Node.js reinicia (Map en memoria se pierde) |
 | Manager en cliente | `localStorage["manager_auth"]` se borra al hacer logout o al recibir el error de auth |
+| Sesión de Manager (OIDC) | Expira al expirar en el proveedor (`id_token_expires_at`) |
+| Sesión de Estudiante | Persiste en el store de Zustand hasta limpiar el local storage |
 | Jugador en cliente | `localStorage["player-session"]` se borra al llamar `reset()` (en `game:reset`) |
 | Estado OIDC pendiente | 10 minutos (TTL en `authorizationStates`) |
 | Handoff de login SSO | 2 minutos (TTL en `loginHandoffs`) |

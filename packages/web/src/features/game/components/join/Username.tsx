@@ -8,16 +8,18 @@ import {
 } from "@mindbuzz/web/features/game/contexts/socketProvider"
 import { usePlayerStore } from "@mindbuzz/web/features/game/stores/player"
 
-import { type KeyboardEvent, useState } from "react"
+import { type KeyboardEvent, useState, useEffect } from "react"
 import { useNavigate } from "react-router"
+import Loader from "@mindbuzz/web/features/game/components/Loader"
 
 const Username = () => {
   const { socket } = useSocket()
-  const { gameId, login, setStatus } = usePlayerStore()
+  const { gameId, login, setStatus, player } = usePlayerStore()
   const navigate = useNavigate()
-  const [username, setUsername] = useState("")
+  const [username, setUsername] = useState(player?.fullName || player?.username || "")
 
-  const handleLogin = () => {
+  const handleLogin = (e?: React.FormEvent) => {
+    e?.preventDefault()
     if (!gameId) {
       return
     }
@@ -25,24 +27,18 @@ const Username = () => {
     socket?.emit("player:login", { gameId, data: { username } })
   }
 
-  const handleKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Enter") {
-      handleLogin()
-    }
-  }
-
   useEvent("game:successJoin", (gameId) => {
     setStatus(STATUS.WAIT, { text: "Waiting for the players" })
-    login(username)
+    login(username, player?.idEstudiante)
 
     navigate(`/party/${gameId}`)
   })
 
   return (
-    <Form>
+    <Form onSubmit={handleLogin}>
       <Input
+        value={username}
         onChange={(e) => setUsername(e.target.value)}
-        onKeyDown={handleKeyDown}
         placeholder="Username here"
       />
       <Button onClick={handleLogin}>Submit</Button>

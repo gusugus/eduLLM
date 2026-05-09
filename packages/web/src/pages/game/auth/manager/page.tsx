@@ -29,6 +29,7 @@ import {
   useSocket,
 } from "@mindbuzz/web/features/game/contexts/socketProvider"
 import { useManagerStore } from "@mindbuzz/web/features/game/stores/manager"
+import { usePlayerStore } from "@mindbuzz/web/features/game/stores/player"
 import { useQuestionStore } from "@mindbuzz/web/features/game/stores/question"
 import clsx from "clsx"
 import { useEffect, useMemo, useState } from "react"
@@ -102,10 +103,11 @@ const ManagerAuthPage = () => {
   const location = useLocation()
   const { socket, clientId, isConnected } = useSocket()
   const { reset, setGameId, setPlayers, setStatus } = useManagerStore()
+  const { reset: resetPlayer } = usePlayerStore()
   const { setQuestionStates } = useQuestionStore()
 
-  const [isAuth, setIsAuth] = useState(readManagerAuth)
-  const [requiresSetup, setRequiresSetup] = useState<boolean | null>(null)
+  const [isAuth, setIsAuth] = useState(true)
+  const [requiresSetup, setRequiresSetup] = useState<boolean | null>(false)
   const [manager, setManager] = useState<ManagerSession | null>(null)
   const [activeTab, setActiveTab] = useState<ManagerTab>("quizzes")
   const [quizzList, setQuizzList] = useState<QuizzWithId[]>([])
@@ -121,7 +123,7 @@ const ManagerAuthPage = () => {
     useState<OidcConfigTestResult | null>(null)
   const [isTestingOidcConfig, setIsTestingOidcConfig] = useState(false)
   const [pendingOidcCompletion, setPendingOidcCompletion] = useState(false)
-  const hasAuthenticatedManager = isAuth && manager !== null
+  const hasAuthenticatedManager = manager !== null
 
   const tabs = useMemo(
     () =>
@@ -403,6 +405,8 @@ const ManagerAuthPage = () => {
   }
 
   const handleLogout = () => {
+    localStorage.removeItem("token") // ELIMINAR TOKEN JWT
+    resetPlayer() // LIMPIAR ESTADO DE ESTUDIANTE
     persistManagerAuth(false)
     setIsAuth(false)
     setManager(null)
@@ -422,27 +426,45 @@ const ManagerAuthPage = () => {
     reset()
     setQuestionStates(null)
     socket?.emit("manager:logout")
-    navigate("/manager")
+    navigate("/login") // Redirigir a LOGIN, no a /manager
   }
 
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    
+    // 1. Verificar estado de autenticación
+    fetch("/auth/status", {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Accept": "application/json"
+      }
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Failed to load status")
+        return await response.json()
+      })
+      .then((data) => {
+        if (data.authenticated) {
+          setManager(data.user);
+        }
+      })
+      .catch((error) => console.error("Failed to load auth status", error));
+
+    // 2. Cargar configuración de SSO/OIDC
     fetch("/auth/oidc/status", {
       method: "GET",
       cache: "no-store",
     })
       .then(async (response) => {
-        if (!response.ok) {
-          throw new Error("Failed to load SSO status")
-        }
-
+        if (!response.ok) throw new Error("Failed to load OIDC status")
         return (await response.json()) as OidcStatus
       })
       .then((status) => {
         setOidcStatus(status)
       })
-      .catch((error) => {
-        console.error("Failed to load OIDC status", error)
-      })
+      .catch((error) => console.error("Failed to load OIDC status", error));
   }, [])
 
   useEffect(() => {
@@ -503,31 +525,12 @@ const ManagerAuthPage = () => {
         </div>
       </div>
     )
-  } else if (!isAuth && requiresSetup) {
-    content = (
-      <div className="relative z-10 flex min-h-dvh w-full flex-col items-center justify-center px-4 py-6">
-        <img src={logo} className="mb-10 h-16" alt="MindBuzz logo" />
-        <InitialAdminSetup onSubmit={handleCreateInitialAdmin} />
-      </div>
-    )
-  } else if (!isAuth) {
-    content = (
-      <div className="relative z-10 flex min-h-dvh w-full flex-col items-center justify-center px-4 py-6">
-        <img src={logo} className="mb-10 h-16" alt="MindBuzz logo" />
-        <ManagerPassword
-          onSubmit={handleAuth}
-          onSsoLogin={handleStartSsoLogin}
-          showSsoButton={oidcStatus.enabled && oidcStatus.configured}
-          isBusy={pendingOidcCompletion}
-        />
-      </div>
-    )
   } else if (!hasAuthenticatedManager) {
     content = (
       <div className="relative z-10 flex min-h-dvh w-full flex-col items-center justify-center px-4 py-6">
         <img src={logo} className="mb-10 h-16" alt="MindBuzz logo" />
         <div className="rounded-md bg-white px-6 py-4 text-sm text-gray-500 shadow-sm">
-          Restoring manager session...
+          Cargando panel de profesor...
         </div>
       </div>
     )

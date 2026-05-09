@@ -197,6 +197,22 @@ class Game {
 
     socket.emit("game:successJoin", this.gameId)
   }
+  leave(socket: Socket) {
+    const player = this.players.find((p) => p.id === socket.id)
+
+    if (!player) {
+      return
+    }
+
+    this.cancelPendingPlayerRemoval(player.clientId)
+    this.players = this.players.filter((p) => p.id !== socket.id)
+    this.playerStatus.delete(socket.id)
+
+    socket.leave(this.gameId)
+    this.io.to(this.manager.id).emit("manager:removePlayer", player.id)
+    this.io.to(this.gameId).emit("game:totalPlayers", this.players.length)
+  }
+
 
   kickPlayer(socket: Socket, playerId: string) {
     if (this.manager.id !== socket.id) {

@@ -16,14 +16,17 @@ export default defineConfig({
     port: 3000,
     host: "0.0.0.0",
     proxy: {
+      "/api": {
+        target: "http://127.0.0.1:3001",
+      },
       "/auth": {
-        target: "http://localhost:3001",
+        target: "http://127.0.0.1:3001",
       },
       "/media": {
-        target: "http://localhost:3001",
+        target: "http://127.0.0.1:3001",
       },
       "/ws": {
-        target: "http://localhost:3001",
+        target: "http://127.0.0.1:3001",
         ws: true,
       },
     },
@@ -33,4 +36,3 @@ export default defineConfig({
     host: "0.0.0.0",
   },
 })
-

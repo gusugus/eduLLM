@@ -1,4 +1,4 @@
-# Base de Datos — SQLite
+# Base de Datos — SQLite y PostgreSQL
 
 > **Parte de:** [Índice](./INDEX.md)  
 > **Archivo fuente:** `packages/socket/src/services/database.ts`  
@@ -6,9 +6,13 @@
 
 ---
 
-## Tecnología
+## 1. SQLite (Historial y Partidas)
 
 MindBuzz usa **SQLite** a través de la API nativa de **Node.js 24** (`node:sqlite`). No requiere drivers externos ni instalar `better-sqlite3` — es parte del runtime.
+
+## 2. PostgreSQL (Cuentas y Estudiantes)
+
+Adicionalmente, se integra **PostgreSQL** (`edu_llm`) mediante el driver `pg` para la validación del login de estudiantes a través del procedure `comun.fn_login`, separando así el estado transaccional permanente del historial efímero de las partidas.
 
 Toda la interacción con la base de datos pasa por el singleton `Database`, que expone la instancia de `DatabaseSync`.
 

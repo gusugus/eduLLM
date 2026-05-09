@@ -80,7 +80,7 @@
 | Frontend | React 19 + Vite + TailwindCSS v4 + Zustand + React Router v7 |
 | Comunicación | Socket.IO v4 (WebSockets) |
 | Backend | Node.js (TypeScript) con servidor HTTP nativo |
-| Base de datos | SQLite (via `node:sqlite` nativa de Node.js 24) |
+| Base de datos | SQLite (historial local) + PostgreSQL (`pg`, cuentas y progreso) |
 | Autenticación | Contraseña propia + OIDC/SSO opcional |
 | Monorepo | pnpm workspaces |
 | Contenedores | Docker (Nginx + Node.js supervisado) |
@@ -113,8 +113,9 @@
 │                                                                 │
 │  ┌──────────────────────┐  ┌────────────────────────────────┐  │
 │  │   HTTP Server         │  │   Socket.IO Server             │  │
-│  │  GET /auth/oidc/...   │  │   ws path: /ws                 │  │
-│  │  GET /media/*         │  │   maxBuffer: 25MB              │  │
+│  │  POST /api/students/* │  │   ws path: /ws                 │  │
+│  │  GET /auth/oidc/...   │  │   maxBuffer: 25MB              │  │
+│  │  GET /media/*         │  │                                │  │
 │  └──────────────────────┘  └────────────────────────────────┘  │
 │                                                                 │
 │  Servicios:                                                     │
@@ -124,6 +125,11 @@
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐          │
 │  │  Config  │ │ OidcAuth │ │OidcStore │ │  Quizz   │          │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘          │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                PostgreSQL (edu_llm)                      │   │
+│  │  esquemas: comun, admin, profesor, estudiante            │   │
+│  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │                SQLite (history.db)                       │   │
@@ -178,9 +184,14 @@ MindBuzz/
     │
     ├── socket/               # @mindbuzz/socket — Servidor backend
     │   └── src/
-    │       ├── index.ts      # Servidor HTTP + Socket.IO (878 líneas, punto de entrada)
+    │       ├── index.ts      # Servidor HTTP + Socket.IO (punto de entrada)
+    │       ├── controllers/
+    │       │   └── studentController.ts  # Endpoint de login de estudiantes
+    │       ├── repositories/
+    │       │   └── studentRepository.ts  # Capa de datos para estudiantes
     │       ├── services/
     │       │   ├── database.ts     # Wrapper SQLite singleton
+    │       │   ├── pgDatabase.ts   # Pool de conexión PostgreSQL
     │       │   ├── accountStore.ts # CRUD de managers y quizzes
     │       │   ├── game.ts         # Lógica de partida (clase Game)
     │       │   ├── registry.ts     # Registro en memoria de partidas activas
@@ -258,6 +269,8 @@ MindBuzz/
                 ├── auth/
                 │   ├── layout.tsx          # Layout de la sección auth
                 │   ├── page.tsx            # Página del jugador (join room)
+                │   ├── studentLogin/       
+                │   │   └── page.tsx        # Login exclusivo para estudiantes
                 │   └── manager/
                 │       └── page.tsx        # Dashboard completo del manager
                 └── party/
@@ -295,6 +308,7 @@ const registry = Registry.getInstance()  // Singleton de partidas activas
 | `GET` | `/auth/oidc/status` | Devuelve `OidcStatus` (enabled/configured) como JSON |
 | `GET` | `/auth/oidc/login` | Inicia flujo OIDC; requiere `?clientId=&returnTo=`; redirige al proveedor |
 | `GET` | `/auth/oidc/callback` | Callback del proveedor OIDC; procesa `code` y `state`; redirige al manager |
+| `POST`| `/api/students/login` | Recibe JSON con `username` y `password`, autentica en DB y devuelve DTO del estudiante logueado |
 | `GET` | `/media/*` | Sirve archivos de audio del directorio `media/`; `Cache-Control: public, max-age=3600` |
 | Todo lo demás | — | `404 Not found` |
 
@@ -882,6 +896,7 @@ createRoot(document.getElementById("root")!).render(
 | Ruta | Componente | Descripción |
 |------|-----------|-------------|
 | `/` | `PlayerAuthPage` | Página de entrada del jugador: ingresa código de sala y username |
+| `/login` | `StudentLoginPage` | Autenticación exclusiva para estudiantes que guarda sesión |
 | `/manager` | `AuthManagerPage` | Dashboard completo del manager (login + gestión) |
 | `/party/:gameId` | `PlayerGamePage` | Partida como jugador |
 | `/party/manager/:gameId` | `ManagerGamePage` | Partida como manager |
@@ -891,6 +906,7 @@ createRoot(document.getElementById("root")!).render(
 GameLayout (SocketProvider)
   └── AuthLayout
       ├── "/" → PlayerAuthPage
+      ├── "/login" → StudentLoginPage
       └── "/manager" → AuthManagerPage
   └── "/party/:gameId" → PlayerGamePage
   └── "/party/manager/:gameId" → ManagerGamePage
@@ -1299,19 +1315,20 @@ Ver sección 4.8 para detalles. Resumen del flujo:
 
 ### 9.3 Sesión de Jugadores
 
-**Los jugadores NO tienen autenticación.** Se identifican por:
+**Los jugadores pueden ser anónimos o estudiantes logueados:**
 
 1. **`clientId`**: UUID v7 en `localStorage["client_id"]` — identifica el dispositivo
-2. **Username**: elegido al unirse a la partida (4-20 chars, validado con Zod)
-3. **socket.id**: asignado por Socket.IO, cambia en cada reconexión
+2. **`idEstudiante`** (opcional): ID del estudiante si inició sesión desde `/login` (contra PostgreSQL)
+3. **Username**: elegido al unirse a la partida, o extraído automáticamente de la base de datos si es estudiante
+4. **socket.id**: asignado por Socket.IO, cambia en cada reconexión
 
 **Persistencia del jugador (Zustand persist):**
 ```typescript
 // En localStorage["player-session"]:
-{ gameId: string|null, player: {username, points}, status: Status|null }
+{ gameId: string|null, player: {username, points, idEstudiante?}, status: Status|null }
 ```
 
-Permite que el jugador recargue la página y reconecte automáticamente.
+Permite que el jugador recargue la página y reconecte automáticamente, o que un estudiante conserve su identidad a través de diferentes partidas.
 
 ### 9.4 Sin cookies — Todo en memoria + localStorage
 

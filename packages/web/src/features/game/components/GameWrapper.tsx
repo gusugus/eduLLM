@@ -90,7 +90,7 @@ const GameWrapper = ({ children, statusName, onNext, manager }: Props) => {
 
             {!manager && (
               <div className="z-50 flex items-center justify-between gap-3 bg-white px-3 py-2 text-base font-bold text-white sm:px-4 sm:text-lg">
-                <p className="min-w-0 truncate text-gray-800">{player?.username}</p>
+                <p className="min-w-0 truncate text-gray-800">{player?.fullName || player?.username}</p>
                 <div className="shrink-0 rounded-sm bg-gray-800 px-3 py-1 text-base sm:text-lg">
                   {player?.points}
                 </div>
@@ -104,4 +104,3 @@ const GameWrapper = ({ children, statusName, onNext, manager }: Props) => {
 }
 
 export default GameWrapper
-

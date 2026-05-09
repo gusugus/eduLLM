@@ -4,3 +4,8 @@
 .secrets
 release.json
 web2
+*release*
+*Dockerfile*
+*.gitignore
+*.dockerignore*
+.gitignore

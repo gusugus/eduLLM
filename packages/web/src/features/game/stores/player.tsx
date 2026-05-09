@@ -7,7 +7,9 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
 type PlayerState = {
+  idEstudiante?: number
   username?: string
+  fullName?: string
   points?: number
 }
 
@@ -19,8 +21,8 @@ type PlayerStore<T> = {
   setGameId: (_gameId: string | null) => void
 
   setPlayer: (_state: PlayerState) => void
-  login: (_gameId: string) => void
-  join: (_username: string) => void
+  login: (_data: Partial<PlayerState>) => void
+  join: (_gameId: string) => void
   updatePoints: (_points: number) => void
 
   setStatus: <K extends keyof T>(_name: K, _data: T[K]) => void
@@ -42,9 +44,9 @@ export const usePlayerStore = create<PlayerStore<StatusDataMap>>()(
       setGameId: (gameId) => set({ gameId }),
 
       setPlayer: (player: PlayerState) => set({ player }),
-      login: (username) =>
+      login: (data) =>
         set((state) => ({
-          player: { ...state.player, username },
+          player: { ...state.player, ...data },
         })),
 
       join: (gameId) => {

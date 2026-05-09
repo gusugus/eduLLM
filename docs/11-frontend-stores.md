@@ -137,9 +137,15 @@ type ManagerStore = {
 **Persistencia:** ✅ Persiste en `localStorage["player-session"]`
 
 ```typescript
+type PlayerState = {
+  idEstudiante?: number
+  username?: string
+  points?: number
+}
+
 type PlayerStore = {
   gameId: string | null            // ID de la partida actual
-  player: { username?, points? } | null  // datos del jugador
+  player: PlayerState | null       // datos del jugador
   status: Status | null            // estado del juego
 
   setGameId(gameId)

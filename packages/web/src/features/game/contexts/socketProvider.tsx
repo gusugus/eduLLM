@@ -72,6 +72,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         reconnectionDelay: 1000,
         auth: {
           clientId,
+          token: localStorage.getItem("token"),
         },
       })
 

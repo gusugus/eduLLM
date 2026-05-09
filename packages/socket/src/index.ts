@@ -10,9 +10,23 @@ import Registry from "@mindbuzz/socket/services/registry"
 import TutorService from "@mindbuzz/socket/services/tutorService"
 import { withGame } from "@mindbuzz/socket/utils/game"
 import fs from "fs"
-import { createServer, type IncomingMessage, type ServerResponse } from "http"
+import { createServer } from "http"
 import { extname, relative, resolve } from "path"
 import { Server as ServerIO } from "socket.io"
+import express from "express"
+import session from "express-session"
+import passport from "passport"
+import flash from "connect-flash"
+import cookieParser from "cookie-parser"
+import pgSession from "connect-pg-simple"
+import { initPg, pgPool } from "./services/pgDatabase.js"
+import { configurePassport } from "./config/passport.js"
+import { roleService } from "./services/roleService.js"
+import authRoutes from "./routes/auth.js"
+import jwt from "jsonwebtoken"
+import { quizzRepository } from "./repositories/quizzRepository.js"
+
+const JWT_SECRET = process.env.JWT_SECRET || "mindbuzz-jwt-secret-key-2026";
 
 const WS_PORT = 3001
 
@@ -64,136 +78,115 @@ const buildManagerRedirect = (
   return redirectTarget.toString()
 }
 
-const httpServer = createServer((req, res) => {
-  if (!req.url) {
-    res.statusCode = 404
-    res.end("Not found")
+const app = express();
+const httpServer = createServer(app);
 
-    return
+// Configuración de Passport
+configurePassport();
+
+// Middlewares básicos
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// Configuración de Sesiones en PostgreSQL
+const PostgresStore = pgSession(session);
+app.use(
+  session({
+    store: new PostgresStore({
+      pool: pgPool,
+      schemaName: "comun",
+      tableName: "sessions",
+      createTableIfMissing: true,
+    }),
+    secret: process.env.SESSION_SECRET || "mindbuzz-secret-key",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      secure: process.env.NODE_ENV === "production",
+    },
+  })
+);
+
+// Inicializar Passport
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(flash());
+
+// CORS manual (puedes usar el paquete 'cors' si prefieres)
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
+// Rutas de Autenticación
+app.use("/auth", authRoutes);
+
+// Rutas OIDC existentes (migradas a Express)
+app.get("/auth/oidc/status", (req, res) => {
+  res.json(OidcAuth.status());
+});
+
+app.get("/auth/oidc/login", (req, res) => {
+  const clientId = (req.query.clientId as string)?.trim() ?? "";
+  const returnTo = (req.query.returnTo as string) ?? "/manager";
+
+  if (!clientId) {
+    return res.status(400).send("clientId is required");
   }
 
-  const requestUrl = new URL(req.url, `http://${req.headers.host ?? "localhost"}`)
+  const origin = `${req.protocol}://${req.get("host")}`;
+  const redirectUri = new URL("/auth/oidc/callback", origin).toString();
 
-  if (requestUrl.pathname.startsWith("/ws")) {
-    return
-  }
-
-  if (req.method === "GET" && requestUrl.pathname === "/auth/oidc/status") {
-    sendJson(res, 200, OidcAuth.status())
-
-    return
-  }
-
-  if (req.method === "GET" && requestUrl.pathname === "/auth/oidc/login") {
-    const clientId = requestUrl.searchParams.get("clientId")?.trim() ?? ""
-    const returnTo = requestUrl.searchParams.get("returnTo") ?? "/manager"
-
-    if (!clientId) {
-      res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" })
-      res.end("clientId is required")
-
-      return
-    }
-
-    const redirectUri = new URL("/auth/oidc/callback", getRequestOrigin(req)).toString()
-
-    OidcAuth.buildAuthorizationUrl({
-      clientId,
-      returnTo,
-      redirectUri,
+  OidcAuth.buildAuthorizationUrl({ clientId, returnTo, redirectUri })
+    .then((authorizationUrl) => {
+      res.redirect(authorizationUrl);
     })
-      .then((authorizationUrl) => {
-        res.writeHead(302, {
-          Location: authorizationUrl,
-          "Cache-Control": "no-store",
-        })
-        res.end()
-      })
-      .catch((error) => {
-        const message =
-          error instanceof Error ? error.message : "Failed to start SSO login"
-        const redirectUrl = buildManagerRedirect(getRequestOrigin(req), returnTo, {
-          oidc: "error",
-          message,
-        })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : "Failed to start SSO login";
+      const redirectUrl = buildManagerRedirect(origin, returnTo, { oidc: "error", message });
+      res.redirect(redirectUrl);
+    });
+});
 
-        res.writeHead(302, {
-          Location: redirectUrl,
-          "Cache-Control": "no-store",
-        })
-        res.end()
-      })
+app.get("/auth/oidc/callback", (req, res) => {
+  const code = req.query.code as string;
+  const state = req.query.state as string;
+  const origin = `${req.protocol}://${req.get("host")}`;
+  const redirectUri = new URL("/auth/oidc/callback", origin).toString();
 
-    return
+  if (!code || !state) {
+    const redirectUrl = buildManagerRedirect(origin, "/manager", {
+      oidc: "error",
+      message: "Missing OIDC callback parameters",
+    });
+    return res.redirect(redirectUrl);
   }
 
-  if (req.method === "GET" && requestUrl.pathname === "/auth/oidc/callback") {
-    const code = requestUrl.searchParams.get("code")
-    const state = requestUrl.searchParams.get("state")
-    const redirectUri = new URL("/auth/oidc/callback", getRequestOrigin(req)).toString()
-
-    if (!code || !state) {
-      const redirectUrl = buildManagerRedirect(getRequestOrigin(req), "/manager", {
-        oidc: "error",
-        message: "Missing OIDC callback parameters",
-      })
-
-      res.writeHead(302, {
-        Location: redirectUrl,
-        "Cache-Control": "no-store",
-      })
-      res.end()
-
-      return
-    }
-
-    OidcAuth.handleCallback({
-      code,
-      state,
-      redirectUri,
+  OidcAuth.handleCallback({ code, state, redirectUri })
+    .then((returnTo) => {
+      const redirectUrl = buildManagerRedirect(origin, returnTo, { oidc: "success" });
+      res.redirect(redirectUrl);
     })
-      .then((returnTo) => {
-        const redirectUrl = buildManagerRedirect(getRequestOrigin(req), returnTo, {
-          oidc: "success",
-        })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : "Failed to complete SSO login";
+      const redirectUrl = buildManagerRedirect(origin, "/manager", { oidc: "error", message });
+      res.redirect(redirectUrl);
+    });
+});
 
-        res.writeHead(302, {
-          Location: redirectUrl,
-          "Cache-Control": "no-store",
-        })
-        res.end()
-      })
-      .catch((error) => {
-        const message =
-          error instanceof Error ? error.message : "Failed to complete SSO login"
-        const redirectUrl = buildManagerRedirect(getRequestOrigin(req), "/manager", {
-          oidc: "error",
-          message,
-        })
-
-        res.writeHead(302, {
-          Location: redirectUrl,
-          "Cache-Control": "no-store",
-        })
-        res.end()
-      })
-
-    return
-  }
-
-  if (req.method !== "GET" || !requestUrl.pathname.startsWith("/media/")) {
-    res.statusCode = 404
-    res.end("Not found")
-
-    return
-  }
-
-  const mediaDirectory = Config.mediaDirectory()
-  const relativePath = decodeURIComponent(
-    requestUrl.pathname.slice("/media/".length),
-  )
-  const filePath = resolve(mediaDirectory, relativePath)
-  const pathFromMediaRoot = relative(mediaDirectory, filePath)
+// Servir archivos estáticos (media)
+app.get("/media/*", (req, res) => {
+  const mediaDirectory = Config.mediaDirectory();
+  const relativePath = decodeURIComponent(req.path.slice("/media/".length));
+  const filePath = resolve(mediaDirectory, relativePath);
+  const pathFromMediaRoot = relative(mediaDirectory, filePath);
 
   if (
     !relativePath ||
@@ -201,18 +194,23 @@ const httpServer = createServer((req, res) => {
     !fs.existsSync(filePath) ||
     !fs.statSync(filePath).isFile()
   ) {
-    res.statusCode = 404
-    res.end("Not found")
-
-    return
+    return res.status(404).send("Not found");
   }
 
-  res.writeHead(200, {
-    "Content-Type": getMimeType(filePath),
-    "Cache-Control": "public, max-age=3600",
-  })
-  fs.createReadStream(filePath).pipe(res)
-})
+  res.setHeader("Content-Type", getMimeType(filePath));
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  fs.createReadStream(filePath).pipe(res);
+});
+
+// Manejador de errores global
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("Express Error:", err);
+  res.status(500).json({ 
+    success: false, 
+    error: "Internal Server Error", 
+    message: err.message
+  });
+});
 
 const io: Server = new ServerIO(httpServer, {
   path: "/ws",
@@ -223,9 +221,49 @@ const io: Server = new ServerIO(httpServer, {
   }
 })
 
+// Middleware de Socket.io para validar JWT
+io.use((socket, next) => {
+  try {
+    // Intentamos obtener el token de auth.token o del header Authorization
+    let token = socket.handshake.auth?.token;
+    
+    if (!token && socket.handshake.headers?.authorization) {
+      const parts = socket.handshake.headers.authorization.split(" ");
+      if (parts.length === 2 && parts[0] === "Bearer") {
+        token = parts[1];
+      }
+    }
+
+    if (!token) {
+      return next();
+    }
+
+    jwt.verify(token, JWT_SECRET, (err: any, decoded: any) => {
+      if (err) {
+        console.error("JWT Verification Error:", err.message);
+        return next(new Error("Authentication error"));
+      }
+      
+      // Guardamos el usuario en data.user
+      socket.data.user = decoded;
+      (socket as any).user = decoded; 
+      next();
+    });
+  } catch (error) {
+    console.error("Socket Auth Middleware Error:", error);
+    next(new Error("Internal Server Error during Auth"));
+  }
+});
+
 Config.init()
 AccountStore.init()
 History.init()
+initPg() 
+roleService.init() 
+
+httpServer.listen(WS_PORT, () => {
+  console.log(`Socket server running on port ${WS_PORT}`)
+})
 
 const registry = Registry.getInstance()
 const authenticatedManagers = new Map<string, ManagerSession>()
@@ -233,9 +271,14 @@ const authenticatedManagers = new Map<string, ManagerSession>()
 const getSocketClientId = (socket: { handshake: { auth: { clientId?: string } } }) =>
   socket.handshake.auth.clientId ?? ""
 
-const getAuthenticatedManager = (socket: {
-  handshake: { auth: { clientId?: string } }
-}) => authenticatedManagers.get(getSocketClientId(socket)) ?? null
+const getAuthenticatedManager = (socket: Socket) => {
+  const user = socket.data.user as any;
+  // Verificamos que sea profesor (rol 2) o admin (rol 3)
+  if (user && (user.id_rol === roleService.PROFESOR || user.id_rol === roleService.ADMIN)) {
+    return user;
+  }
+  return null;
+}
 
 const requireAuthenticatedManager = (socket: Socket) => {
   const manager = getAuthenticatedManager(socket)
@@ -269,21 +312,26 @@ const emitBootstrapState = (socket: Socket) => {
   })
 }
 
-const emitManagerDashboard = (socket: Socket, manager: ManagerSession) => {
+const emitManagerDashboard = async (socket: Socket, manager: any) => {
   const clientId = getSocketClientId(socket)
   const activeGame = registry.getGameByManagerAccountId(manager.id)
 
-  socket.emit("manager:authSuccess", { manager })
-  socket.emit("manager:quizzList", AccountStore.listQuizzes(manager.id))
-  socket.emit("manager:historyList", History.listRuns(manager.id))
-  socket.emit("manager:settings", AccountStore.getManagerSettings(manager.id))
-  socket.emit(
-    "manager:activeGame",
-    activeGame ? activeGame.getActiveManagerGame(clientId) : null,
-  )
-  socket.emit("manager:oidcStatus", OidcAuth.status())
+  try {
+    const quizzes = await quizzRepository.listByProfessor(manager.id)
+    socket.emit("manager:authSuccess", { manager })
+    socket.emit("manager:quizzList", quizzes)
+    socket.emit("manager:historyList", History.listRuns(manager.id))
+    socket.emit("manager:settings", AccountStore.getManagerSettings(manager.id))
+    socket.emit(
+      "manager:activeGame",
+      activeGame ? activeGame.getActiveManagerGame(clientId) : null,
+    )
+    socket.emit("manager:oidcStatus", OidcAuth.status())
+  } catch (error) {
+    socket.emit("manager:errorMessage", "Error al cargar datos del profesor")
+  }
 
-  if (manager.role === "admin") {
+  if (manager.id_rol === 3) { // Admin role check
     socket.emit("manager:managersList", AccountStore.listManagers())
   } else {
     socket.emit("manager:managersList", [])
@@ -337,9 +385,6 @@ const revokeManagerAccountAccess = (managerId: string, reason: string) => {
   activeGame.terminate(reason)
 }
 
-console.log(`Socket server running on port ${WS_PORT}`)
-httpServer.listen(WS_PORT)
-
 io.on("connection", (socket) => {
   console.log(
     `A user connected: socketId: ${socket.id}, clientId: ${socket.handshake.auth.clientId}`,
@@ -349,46 +394,8 @@ io.on("connection", (socket) => {
     emitBootstrapState(socket)
   })
 
-  socket.on("manager:createInitialAdmin", ({ username, password }) => {
-    try {
-      const manager = AccountStore.createInitialAdmin(username, password)
-
-      authenticatedManagers.set(getSocketClientId(socket), manager)
-      emitBootstrapState(socket)
-      emitManagerDashboard(socket, manager)
-    } catch (error) {
-      socket.emit(
-        "manager:errorMessage",
-        error instanceof Error
-          ? error.message
-          : "Failed to create the initial admin account",
-      )
-    }
-  })
-
-  socket.on("manager:auth", ({ username, password }) => {
-    try {
-      const result = AccountStore.authenticateManager(username, password)
-
-      if (!result.ok) {
-        socket.emit(
-          "manager:errorMessage",
-          result.reason === "disabled" ? "Account is disabled" : "Invalid credentials",
-        )
-
-        return
-      }
-
-      authenticatedManagers.set(getSocketClientId(socket), result.manager)
-      emitManagerDashboard(socket, result.manager)
-    } catch (error) {
-      socket.emit(
-        "manager:errorMessage",
-        error instanceof Error ? error.message : "Failed to sign in",
-      )
-    }
-  })
-
+  // ELIMINADO: manager:auth (Ahora se hace por HTTP /auth/login)
+  
   socket.on("manager:completeOidcLogin", () => {
     const clientId = getSocketClientId(socket)
     const handoff = OidcAuth.consumeLoginHandoff(clientId)
@@ -403,20 +410,21 @@ io.on("connection", (socket) => {
     emitManagerDashboard(socket, handoff.manager)
   })
 
-  socket.on("manager:getDashboard", () => {
+  socket.on("manager:getDashboard", async () => {
     const manager = requireAuthenticatedManager(socket)
 
     if (!manager) {
       return
     }
 
-    emitManagerDashboard(socket, manager)
+    await emitManagerDashboard(socket, manager)
   })
 
   socket.on("manager:logout", () => {
     const clientId = getSocketClientId(socket)
 
-    authenticatedManagers.delete(clientId)
+    // Con JWT el logout es simplemente descartar el token en el cliente.
+    // Aquí solo revocamos el control del juego si existe.
     revokeControlledGameForClient(clientId, "Manager logged out")
   })
 
@@ -551,7 +559,7 @@ io.on("connection", (socket) => {
     }
   })
 
-  socket.on("game:create", (quizzId) => {
+  socket.on("game:create", async (quizzId) => {
     const manager = requireAuthenticatedManager(socket)
 
     if (!manager) {
@@ -570,30 +578,34 @@ io.on("connection", (socket) => {
       return
     }
 
-    const quizz = AccountStore.getQuizz(manager.id, quizzId)
+    try {
+      const quizzes = await quizzRepository.listByProfessor(manager.id)
+      const quizz = quizzes.find(q => q.id === quizzId)
 
-    if (!quizz) {
-      socket.emit("game:errorMessage", "Quiz not found")
+      if (!quizz) {
+        socket.emit("game:errorMessage", "Quiz not found")
+        return
+      }
 
-      return
+      const game = new Game(
+        io,
+        socket,
+        manager,
+        quizz,
+        AccountStore.getManagerSettings(manager.id),
+      )
+
+      registry.addGame(game)
+      socket.emit(
+        "manager:activeGame",
+        game.getActiveManagerGame(getSocketClientId(socket)),
+      )
+    } catch (error) {
+      socket.emit("game:errorMessage", "Error al crear partida")
     }
-
-    const game = new Game(
-      io,
-      socket,
-      manager,
-      quizz,
-      AccountStore.getManagerSettings(manager.id),
-    )
-
-    registry.addGame(game)
-    socket.emit(
-      "manager:activeGame",
-      game.getActiveManagerGame(getSocketClientId(socket)),
-    )
   })
 
-  socket.on("manager:createQuizz", ({ subject }) => {
+  socket.on("manager:createQuizz", async ({ subject }) => {
     const manager = requireAuthenticatedManager(socket)
 
     if (!manager) {
@@ -601,9 +613,13 @@ io.on("connection", (socket) => {
     }
 
     try {
-      const quizz = AccountStore.createQuizz(manager.id, subject)
-      socket.emit("manager:quizzCreated", quizz)
-      socket.emit("manager:quizzList", AccountStore.listQuizzes(manager.id))
+      const quizz: Quizz = { subject, questions: [] }
+      const id = await quizzRepository.create(quizz, manager.id)
+      const quizzWithId = { ...quizz, id }
+      
+      socket.emit("manager:quizzCreated", quizzWithId)
+      const quizzes = await quizzRepository.listByProfessor(manager.id)
+      socket.emit("manager:quizzList", quizzes)
     } catch (error) {
       socket.emit(
         "manager:errorMessage",
@@ -612,7 +628,7 @@ io.on("connection", (socket) => {
     }
   })
 
-  socket.on("manager:updateQuizz", ({ quizzId, quizz }) => {
+  socket.on("manager:updateQuizz", async ({ quizzId, quizz }) => {
     const manager = requireAuthenticatedManager(socket)
 
     if (!manager) {
@@ -620,9 +636,10 @@ io.on("connection", (socket) => {
     }
 
     try {
-      const updatedQuizz = AccountStore.updateQuizz(manager.id, quizzId, quizz)
-      socket.emit("manager:quizzUpdated", updatedQuizz)
-      socket.emit("manager:quizzList", AccountStore.listQuizzes(manager.id))
+      await quizzRepository.update(quizzId, quizz)
+      socket.emit("manager:quizzUpdated", { ...quizz, id: quizzId })
+      const quizzes = await quizzRepository.listByProfessor(manager.id)
+      socket.emit("manager:quizzList", quizzes)
     } catch (error) {
       socket.emit(
         "manager:errorMessage",
@@ -631,7 +648,7 @@ io.on("connection", (socket) => {
     }
   })
 
-  socket.on("manager:deleteQuizz", ({ quizzId }) => {
+  socket.on("manager:deleteQuizz", async ({ quizzId }) => {
     const manager = requireAuthenticatedManager(socket)
 
     if (!manager) {
@@ -639,9 +656,10 @@ io.on("connection", (socket) => {
     }
 
     try {
-      AccountStore.deleteQuizz(manager.id, quizzId)
+      await quizzRepository.delete(quizzId)
       socket.emit("manager:quizzDeleted", quizzId)
-      socket.emit("manager:quizzList", AccountStore.listQuizzes(manager.id))
+      const quizzes = await quizzRepository.listByProfessor(manager.id)
+      socket.emit("manager:quizzList", quizzes)
     } catch (error) {
       socket.emit(
         "manager:errorMessage",
@@ -783,6 +801,13 @@ io.on("connection", (socket) => {
   socket.on("player:login", ({ gameId, data }) =>
     withGame(gameId, socket, (game) => game.join(socket, data.username)),
   )
+
+  socket.on("player:leave", () => {
+    const game = registry.getGameByPlayerSocketId(socket.id)
+    if (game) {
+      game.leave(socket)
+    }
+  })
 
   socket.on("manager:kickPlayer", ({ gameId, playerId }) =>
     withGame(gameId, socket, (game) => game.kickPlayer(socket, playerId)),

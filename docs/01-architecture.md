@@ -24,7 +24,7 @@ Aplicación de quizzes en tiempo real estilo Kahoot. Un **manager** crea y contr
 | WebSockets (cliente) | socket.io-client | v4.8 |
 | WebSockets (servidor) | socket.io | v4.8 |
 | Backend | Node.js + TypeScript | Node 24 |
-| Base de datos | SQLite nativa | `node:sqlite` (Node 24) |
+| Base de datos | SQLite (historial) + PostgreSQL (cuentas y progreso) | `node:sqlite` + `pg` |
 | Monorepo | pnpm workspaces | pnpm 10 |
 | Contenedores | Docker + Nginx + supervisord | node:24-alpine |
 
@@ -47,7 +47,7 @@ Aplicación de quizzes en tiempo real estilo Kahoot. Un **manager** crea y contr
 │   │  └────────────────┘ └──────────────────┘│                  │
 │   └─────────────────────────────────────────┘                  │
 │                         │ WebSocket /ws                         │
-│                         │ HTTP /auth /media                     │
+│                         │ HTTP /auth /media /api/students       │
 └─────────────────────────┼───────────────────────────────────────┘
                           │ (En dev: proxiado por Vite)
                           │ (En prod: proxiado por Nginx)
@@ -56,14 +56,18 @@ Aplicación de quizzes en tiempo real estilo Kahoot. Un **manager** crea y contr
 │                                                                 │
 │  HTTP Server                   Socket.IO Server                 │
 │  ├── GET /auth/oidc/status      ├── path: /ws                   │
-│  ├── GET /auth/oidc/login       └── maxBuffer: 25MB             │
-│  ├── GET /auth/oidc/callback                                    │
-│  └── GET /media/*                                               │
+│  ├── GET /auth/oidc/login       ├── path: /ws                   │
+│  ├── GET /auth/oidc/callback    └── maxBuffer: 25MB             │
+│  ├── GET /media/*                                               │
+│  └── POST /api/students/*                                       │
 │                                                                 │
 │  Servicios en memoria y filesystem:                             │
 │  Config · AccountStore · Game · Registry · History              │
 │  OidcAuth · OidcStore · Quizz (helpers)                         │
 │                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │              PostgreSQL (edu_llm)                        │   │
+│  └─────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │              SQLite  config/history.db                   │   │
 │  └─────────────────────────────────────────────────────────┘   │
@@ -182,6 +186,7 @@ pnpm dev:socket # solo tsx watch (:3001)
 | Ruta | Target |
 |------|--------|
 | `/auth/*` | `http://localhost:3001` |
+| `/api/*` | `http://localhost:3001` |
 | `/media/*` | `http://localhost:3001` |
 | `/ws` | `http://localhost:3001` (WebSocket) |
 

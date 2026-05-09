@@ -16,14 +16,9 @@ const Room = () => {
   const [searchParams] = useSearchParams()
   const hasJoinedRef = useRef(false)
 
-  const handleJoin = () => {
+  const handleJoin = (e?: React.FormEvent) => {
+    e?.preventDefault()
     socket?.emit("player:join", invitation)
-  }
-
-  const handleKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Enter") {
-      handleJoin()
-    }
   }
 
   useEvent("game:successRoom", (gameId) => {
@@ -42,10 +37,9 @@ const Room = () => {
   }, [searchParams, isConnected, socket])
 
   return (
-    <Form>
+    <Form onSubmit={handleJoin}>
       <Input
         onChange={(e) => setInvitation(e.target.value)}
-        onKeyDown={handleKeyDown}
         placeholder="PIN Code here"
       />
       <Button onClick={handleJoin}>Submit</Button>
