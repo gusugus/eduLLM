@@ -25,6 +25,7 @@ const createEmptyQuestion = () => ({
 const QuizzEditor = ({ quizz, onBack, onSave }: Props) => {
   const [draft, setDraft] = useState<Quizz>({
     subject: quizz.subject,
+    title: quizz.title,
     questions: quizz.questions.map((question) => ({
       ...question,
       image: question.image ?? "",
@@ -36,6 +37,7 @@ const QuizzEditor = ({ quizz, onBack, onSave }: Props) => {
   useEffect(() => {
     setDraft({
       subject: quizz.subject,
+      title: quizz.title,
       questions: quizz.questions.map((question) => ({
         ...question,
         image: question.image ?? "",
@@ -191,8 +193,8 @@ const QuizzEditor = ({ quizz, onBack, onSave }: Props) => {
     <div className="z-10 flex w-full max-w-6xl flex-col gap-5 rounded-md bg-white p-4 shadow-sm md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm font-semibold text-gray-500">Editing quiz</p>
-          <h1 className="text-2xl font-bold">{draft.subject || quizz.subject}</h1>
+          <p className="text-sm font-semibold text-gray-500">Materia: {quizz.subject}</p>
+          <h1 className="text-2xl font-bold">Editing: {draft.title}</h1>
         </div>
 
         <div className="flex flex-col gap-2 md:flex-row">
@@ -210,9 +212,9 @@ const QuizzEditor = ({ quizz, onBack, onSave }: Props) => {
           Quiz title
         </label>
         <Input
-          value={draft.subject}
+          value={draft.title}
           onChange={(event) =>
-            setDraft((current) => ({ ...current, subject: event.target.value }))
+            setDraft((current) => ({ ...current, title: event.target.value }))
           }
           placeholder="Quiz title"
           className="w-full"
@@ -416,4 +418,3 @@ const QuizzEditor = ({ quizz, onBack, onSave }: Props) => {
 }
 
 export default QuizzEditor
-

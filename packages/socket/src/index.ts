@@ -1,4 +1,5 @@
-import type { ManagerSession } from "@mindbuzz/common/types/game"
+// RECARGA FORZADA - DEPURACION DE MATERIAS
+import type { ManagerSession, Quizz } from "@mindbuzz/common/types/game"
 import { Server, Socket } from "@mindbuzz/common/types/game/socket"
 import { inviteCodeValidator } from "@mindbuzz/common/validators/auth"
 import AccountStore from "@mindbuzz/socket/services/accountStore"
@@ -9,22 +10,23 @@ import OidcAuth from "@mindbuzz/socket/services/oidcAuth"
 import Registry from "@mindbuzz/socket/services/registry"
 import TutorService from "@mindbuzz/socket/services/tutorService"
 import { withGame } from "@mindbuzz/socket/utils/game"
-import fs from "fs"
-import { createServer } from "http"
-import { extname, relative, resolve } from "path"
-import { Server as ServerIO } from "socket.io"
+import flash from "connect-flash"
+import pgSession from "connect-pg-simple"
+import cookieParser from "cookie-parser"
 import express from "express"
 import session from "express-session"
-import passport from "passport"
-import flash from "connect-flash"
-import cookieParser from "cookie-parser"
-import pgSession from "connect-pg-simple"
-import { initPg, pgPool } from "./services/pgDatabase.js"
-import { configurePassport } from "./config/passport.js"
-import { roleService } from "./services/roleService.js"
-import authRoutes from "./routes/auth.js"
+import fs from "fs"
+import { createServer } from "http"
 import jwt from "jsonwebtoken"
+import passport from "passport"
+import { extname, relative, resolve } from "path"
+import { Server as ServerIO } from "socket.io"
+import { configurePassport } from "./config/passport.js"
+import { materiaRepository } from "./repositories/materiaRepository.js"
 import { quizzRepository } from "./repositories/quizzRepository.js"
+import authRoutes from "./routes/auth.js"
+import { initPg, pgPool } from "./services/pgDatabase.js"
+import { roleService } from "./services/roleService.js"
 
 const JWT_SECRET = process.env.JWT_SECRET || "mindbuzz-jwt-secret-key-2026";
 
@@ -284,7 +286,10 @@ const requireAuthenticatedManager = (socket: Socket) => {
   const manager = getAuthenticatedManager(socket)
 
   if (!manager) {
+    console.log(`[Auth] Intento de acceso sin autenticación desde socket: ${socket.id}`);
     socket.emit("manager:errorMessage", "Manager authentication required")
+  } else {
+    console.log(`[Auth] Manager autenticado detectado: ${manager.username} (ID: ${manager.id})`);
   }
 
   return manager
@@ -317,9 +322,10 @@ const emitManagerDashboard = async (socket: Socket, manager: any) => {
   const activeGame = registry.getGameByManagerAccountId(manager.id)
 
   try {
-    const quizzes = await quizzRepository.listByProfessor(manager.id)
+    console.log(`[Dashboard] Cargando datos para manager: ${manager.username} (ID: ${manager.id})`);
+
+    // Emitir autenticación primero
     socket.emit("manager:authSuccess", { manager })
-    socket.emit("manager:quizzList", quizzes)
     socket.emit("manager:historyList", History.listRuns(manager.id))
     socket.emit("manager:settings", AccountStore.getManagerSettings(manager.id))
     socket.emit(
@@ -327,7 +333,29 @@ const emitManagerDashboard = async (socket: Socket, manager: any) => {
       activeGame ? activeGame.getActiveManagerGame(clientId) : null,
     )
     socket.emit("manager:oidcStatus", OidcAuth.status())
+
+    // Cargar y emitir materias
+    try {
+      const materias = await materiaRepository.listByProfessor(manager.id)
+      console.log(`[Dashboard] Materias encontradas: ${materias.length}`);
+      socket.emit("manager:materiaList", materias)
+    } catch (errorMaterias) {
+      console.error("[Dashboard] Error cargando materias:", errorMaterias)
+      socket.emit("manager:materiaList", [])
+    }
+
+    // Cargar y emitir quizzes
+    try {
+      const quizzes = await quizzRepository.listByProfessor(manager.id)
+      console.log(`[Dashboard] Quizzes encontrados: ${quizzes.length}`);
+      socket.emit("manager:quizzList", quizzes)
+    } catch (errorQuizzes) {
+      console.error("[Dashboard] Error cargando quizzes:", errorQuizzes)
+      socket.emit("manager:quizzList", [])
+    }
+
   } catch (error) {
+    console.error("[Dashboard] Error general:", error)
     socket.emit("manager:errorMessage", "Error al cargar datos del profesor")
   }
 
@@ -386,8 +414,9 @@ const revokeManagerAccountAccess = (managerId: string, reason: string) => {
 }
 
 io.on("connection", (socket) => {
+  const user = socket.data.user;
   console.log(
-    `A user connected: socketId: ${socket.id}, clientId: ${socket.handshake.auth.clientId}`,
+    `A user connected: socketId: ${socket.id}, clientId: ${socket.handshake.auth.clientId}, User: ${user ? user.username : 'Guest'}`,
   )
 
   socket.on("manager:getBootstrapState", () => {
@@ -411,6 +440,7 @@ io.on("connection", (socket) => {
   })
 
   socket.on("manager:getDashboard", async () => {
+    console.log(`[Socket] Recibido manager:getDashboard de ${socket.id}`);
     const manager = requireAuthenticatedManager(socket)
 
     if (!manager) {
@@ -605,7 +635,7 @@ io.on("connection", (socket) => {
     }
   })
 
-  socket.on("manager:createQuizz", async ({ subject }) => {
+  socket.on("manager:createQuizz", async ({ title, subject, materiaId }) => {
     const manager = requireAuthenticatedManager(socket)
 
     if (!manager) {
@@ -613,7 +643,8 @@ io.on("connection", (socket) => {
     }
 
     try {
-      const quizz: Quizz = { subject, questions: [] }
+      const quizz: Quizz = { title, subject, materiaId, questions: [] }
+      console.log("CREANDO QUIZ", quizz);
       const id = await quizzRepository.create(quizz, manager.id)
       const quizzWithId = { ...quizz, id }
       

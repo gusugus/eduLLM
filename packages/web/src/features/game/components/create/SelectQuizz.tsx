@@ -2,29 +2,41 @@ import type { QuizzWithId } from "@mindbuzz/common/types/game"
 import Button from "@mindbuzz/web/features/game/components/Button"
 import Input from "@mindbuzz/web/features/game/components/Input"
 import clsx from "clsx"
-import { type KeyboardEvent, useMemo, useState } from "react"
+import { type KeyboardEvent, useEffect, useMemo, useState } from "react"
 import toast from "react-hot-toast"
 
 type Props = {
   quizzList: QuizzWithId[]
+  materiaList: { id: number; nombre: string }[]
   onSelect: (_id: string) => void
-  onCreate: (_subject: string) => void
+  onCreate: (_title: string, _subject: string, _materiaId?: number) => void
   onDelete: (_id: string) => void
   onEdit: (_id: string) => void
 }
 
 const SelectQuizz = ({
   quizzList,
+  materiaList,
   onCreate,
   onDelete,
   onEdit,
   onSelect,
 }: Props) => {
   const [selected, setSelected] = useState<string | null>(null)
-  const [subject, setSubject] = useState("")
+  const [selectedMateria, setSelectedMateria] = useState<number | "">("")
+  const [quizName, setQuizName] = useState("")
+
+  // Seleccionar la primera materia por defecto cuando se carga la lista
+  useEffect(() => {
+    if (materiaList.length > 0 && selectedMateria === "") {
+      setSelectedMateria(materiaList[0].id)
+    }
+  }, [materiaList, selectedMateria])
+
+  console.log("[SelectQuizz] Materias recibidas:", materiaList.length);
 
   const sortedQuizzList = useMemo(
-    () => [...quizzList].sort((a, b) => a.subject.localeCompare(b.subject)),
+    () => [...quizzList].sort((a, b) => (a.title || "").localeCompare(b.title || "")),
     [quizzList],
   )
 
@@ -47,16 +59,19 @@ const SelectQuizz = ({
   }
 
   const handleCreate = () => {
-    const trimmedSubject = subject.trim()
+    const trimmedTitle = quizName.trim()
 
-    if (!trimmedSubject) {
+    if (!trimmedTitle) {
       toast.error("Please enter a quiz name")
 
       return
     }
 
-    onCreate(trimmedSubject)
-    setSubject("")
+    const materia = materiaList.find(m => m.id === selectedMateria);
+    const materiaName = materia ? materia.nombre : "General";
+
+    onCreate(trimmedTitle, materiaName, materia?.id)
+    setQuizName("")
   }
 
   const handleDelete = (id: string) => () => {
@@ -67,7 +82,7 @@ const SelectQuizz = ({
     }
 
     const confirmed = window.confirm(
-      `Delete "${quizz.subject}"? This removes it from your account.`,
+      `Delete "${quizz.title}"? This removes it from your account.`,
     )
 
     if (!confirmed) {
@@ -91,10 +106,24 @@ const SelectQuizz = ({
     <div className="z-10 flex w-full max-w-2xl flex-col gap-5 rounded-md bg-white p-4 shadow-sm md:p-6">
       <div className="flex flex-col gap-3">
         <h1 className="text-2xl font-bold">Manage quizzes</h1>
-        <div className="flex flex-col gap-2 md:flex-row">
+        
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-gray-700">Seleccionar Materia:</label>
+          <select 
+            value={selectedMateria} 
+            onChange={(e) => setSelectedMateria(e.target.value ? Number(e.target.value) : "")}
+            className="w-full p-2 border rounded-md bg-gray-50 outline-primary text-black"
+          >
+            {materiaList.map(m => (
+              <option key={m.id} value={m.id}>{m.nombre}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-2 md:flex-row mt-2">
           <Input
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
+            value={quizName}
+            onChange={(e) => setQuizName(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="New quiz name"
             className="flex-1"
@@ -137,9 +166,9 @@ const SelectQuizz = ({
               }}
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-lg font-semibold">{quizz.subject}</p>
+                <p className="truncate text-lg font-semibold">{quizz.title}</p>
                 <p className="text-sm text-gray-500">
-                  {quizz.questions.length} questions
+                  {quizz.subject} • {quizz.questions.length} questions
                 </p>
               </div>
 
@@ -185,4 +214,3 @@ const SelectQuizz = ({
 }
 
 export default SelectQuizz
-

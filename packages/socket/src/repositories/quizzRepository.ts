@@ -3,43 +3,43 @@ import { Quizz, QuizzWithId } from "@mindbuzz/common/types/game";
 
 export class QuizzRepository {
   /**
-   * Lista los quizzes de un profesor desde Postgres
+   * Lista los quizzes de un profesor usando profesor.pruebas_listar y profesor.preguntas_listar
    */
-  async listByProfessor(idProfesor: number): Promise<QuizzWithId[]> {
+  async listByProfessor(idUsuario: number): Promise<QuizzWithId[]> {
     const client = await pgPool.connect();
     try {
-      const query = `
-        SELECT 
-          id_prueba as id,
-          titulo as subject,
-          descripcion,
-          configuracion as settings
-        FROM comun.INFO_PRUEBA
-        WHERE id_profesor = $1 AND id_estado = (SELECT id_estado FROM comun.ADMIN_ESTADO WHERE codigo = 'ACT')
-      `;
-      const res = await client.query(query, [idProfesor]);
-      
+      // Usa la función profesor.pruebas_listar
+      const res = await client.query(
+        "SELECT * FROM profesor.pruebas_listar($1)",
+        [idUsuario]
+      );
+
       const quizzes: QuizzWithId[] = [];
-      
+
       for (const row of res.rows) {
+        // Usa la función profesor.preguntas_listar
         const questionsRes = await client.query(
-          `SELECT texto as text, opciones as options, respuesta_correcta as "correctAnswer", 
-                  puntaje as points, tiempo_limite as duration
-           FROM comun.INFO_PREGUNTA 
-           WHERE id_prueba = $1`,
-          [row.id]
+          "SELECT * FROM profesor.preguntas_listar($1)",
+          [row.id_prueba]
         );
-        
+
         quizzes.push({
-          id: row.id.toString(),
-          subject: row.subject,
+          id: row.id_prueba.toString(),
+          subject: row.nombre_materia || "Sin materia",
+          title: row.titulo,
           questions: questionsRes.rows.map(q => ({
-            ...q,
-            options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+            question: q.texto || "",
+            answers: typeof q.opciones === "string"
+              ? JSON.parse(q.opciones)
+              : (q.opciones || []),
+            solutions: [parseInt(q.respuesta_correcta) || 0],
+            points: q.puntaje || 10,
+            time: q.tiempo_limite || 20,
+            cooldown: 5,
           }))
         });
       }
-      
+
       return quizzes;
     } finally {
       client.release();
@@ -47,31 +47,39 @@ export class QuizzRepository {
   }
 
   /**
-   * Crea un nuevo Quizz en la base de datos
+   * Crea un nuevo Quizz usando profesor.pruebas_crear y profesor.preguntas_agregar
    */
-  async create(quizz: Quizz, idProfesor: number): Promise<string> {
+  async create(quizz: Quizz, idUsuario: number): Promise<string> {
     const client = await pgPool.connect();
     try {
       await client.query("BEGIN");
 
-      // Usamos CALL para procedimientos con parámetros INOUT/OUT
-      // Nota: En PostgreSQL 11+, CALL devuelve los parámetros OUT como una fila de resultados
+      // Crear la cabecera del quiz
       const pruebaRes = await client.query(
         "CALL profesor.pruebas_crear($1, $2, $3, $4, $5, NULL, NULL)",
-        [quizz.subject, "Creado desde panel", idProfesor, null, JSON.stringify({})]
+        [quizz.subject, quizz.title, idUsuario, quizz.materiaId || null, JSON.stringify({})]
       );
-      
-      const idPrueba = pruebaRes.rows[0].pn_id_prueba;
-      const error = pruebaRes.rows[0].pv_error;
 
-      if (error) throw new Error(error);
+      const idPrueba = pruebaRes.rows[0]?.pn_id_prueba;
+      const errorPrueba = pruebaRes.rows[0]?.pv_error;
+      if (errorPrueba) throw new Error(errorPrueba);
 
-      // Agregar las preguntas
+      // Agregar las preguntas usando profesor.preguntas_agregar
       for (const q of quizz.questions) {
-        await client.query(
-          "CALL profesor.preguntas_agregar($1, $2, $3, $4, $5, $6, NULL)",
-          [idPrueba, q.text, JSON.stringify(q.options), q.correctAnswer, q.points || 10, q.duration || 20]
+        const resPregunta = await client.query(
+          "CALL profesor.preguntas_agregar($1, $2, $3, $4, $5, $6, NULL, NULL)",
+          [
+            idPrueba,
+            q.question || "",
+            JSON.stringify(q.answers || []),
+            q.solutions?.[0] || 0,
+            q.points || 10,
+            q.time || 20,
+          ]
         );
+
+        const errorPregunta = resPregunta.rows[0]?.pv_error;
+        if (errorPregunta) throw new Error(errorPregunta);
       }
 
       await client.query("COMMIT");
@@ -85,25 +93,42 @@ export class QuizzRepository {
   }
 
   /**
-   * Actualiza un Quizz existente
+   * Actualiza un Quizz usando profesor.pruebas_editar y profesor.preguntas_agregar.
+   * Las preguntas anteriores se marcan como 'ELI' (Soft Delete).
    */
   async update(idQuizz: string, quizz: Quizz): Promise<void> {
     const client = await pgPool.connect();
     try {
       await client.query("BEGIN");
 
+      // Editar la cabecera del quiz usando profesor.pruebas_editar
       await client.query(
-        "UPDATE comun.INFO_PRUEBA SET titulo = $1, configuracion = $2 WHERE id_prueba = $3",
-        [quizz.subject, JSON.stringify({}), parseInt(idQuizz)]
+        "CALL profesor.pruebas_editar($1, $2, $3)",
+        [parseInt(idQuizz), quizz.title, JSON.stringify({})]
       );
 
-      await client.query("DELETE FROM comun.INFO_PREGUNTA WHERE id_prueba = $1", [parseInt(idQuizz)]);
+      // Desactivar preguntas anteriores (Soft Delete) usando procedimiento
+      await client.query(
+        "CALL profesor.preguntas_eliminar($1)",
+        [parseInt(idQuizz)]
+      );
 
+      // Reinsertar las preguntas usando profesor.preguntas_agregar
       for (const q of quizz.questions) {
-        await client.query(
-          "CALL profesor.preguntas_agregar($1, $2, $3, $4, $5, $6, NULL)",
-          [parseInt(idQuizz), q.text, JSON.stringify(q.options), q.correctAnswer, q.points || 10, q.duration || 20]
+        const resPregunta = await client.query(
+          "CALL profesor.preguntas_agregar($1, $2, $3, $4, $5, $6, NULL, NULL)",
+          [
+            parseInt(idQuizz),
+            q.question || "",
+            JSON.stringify(q.answers || []),
+            q.solutions?.[0] || 0,
+            q.points || 10,
+            q.time || 20,
+          ]
         );
+
+        const errorPregunta = resPregunta.rows[0]?.pv_error;
+        if (errorPregunta) throw new Error(errorPregunta);
       }
 
       await client.query("COMMIT");
@@ -115,12 +140,9 @@ export class QuizzRepository {
     }
   }
 
-  /**
-   * Elimina un Quizz
-   */
   async delete(idQuizz: string): Promise<void> {
     await pgPool.query(
-      "UPDATE comun.INFO_PRUEBA SET id_estado = (SELECT id_estado FROM comun.ADMIN_ESTADO WHERE codigo = 'ELI') WHERE id_prueba = $1",
+      "CALL profesor.pruebas_eliminar($1)",
       [parseInt(idQuizz)]
     );
   }

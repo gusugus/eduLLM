@@ -476,6 +476,9 @@ class AccountStore {
     return AccountStore.getManagerSettings(managerId)
   }
 
+  /**
+   * @deprecated Use quizzRepository.listByProfessor instead.
+   */
   static listQuizzes(managerId: string) {
     const db = AccountStore.getDb()
     const rows = db.prepare(`
@@ -491,6 +494,9 @@ class AccountStore {
     })) as QuizzWithId[]
   }
 
+  /**
+   * @deprecated Use quizzRepository instead.
+   */
   static getQuizz(managerId: string, quizzId: string) {
     const db = AccountStore.getDb()
     const row = db.prepare(`
@@ -511,6 +517,9 @@ class AccountStore {
     } satisfies QuizzWithId
   }
 
+  /**
+   * @deprecated Use quizzRepository.create instead.
+   */
   static createQuizz(managerId: string, subject: string) {
     const db = AccountStore.getDb()
     const quizz = normalizeQuizz({
@@ -552,6 +561,9 @@ class AccountStore {
     }
   }
 
+  /**
+   * @deprecated Use quizzRepository.update instead.
+   */
   static updateQuizz(managerId: string, quizzId: string, quizz: Quizz) {
     const db = AccountStore.getDb()
     const normalizedQuizz = normalizeQuizz(quizz)
@@ -578,6 +590,9 @@ class AccountStore {
     }
   }
 
+  /**
+   * @deprecated Use quizzRepository.delete instead.
+   */
   static deleteQuizz(managerId: string, quizzId: string) {
     const db = AccountStore.getDb()
     const result = db.prepare(`

@@ -8,22 +8,20 @@ import type {
   OidcConfigInput,
   OidcConfigTestResult,
   OidcStatus,
+  QuizRunHistorySummary,
   Quizz,
   QuizzWithId,
-  QuizRunHistorySummary,
 } from "@mindbuzz/common/types/game"
 import { STATUS } from "@mindbuzz/common/types/game/status"
 import background from "@mindbuzz/web/assets/background.webp"
 import logo from "@mindbuzz/web/assets/logo.svg"
 import Button from "@mindbuzz/web/features/game/components/Button"
 import HistoryPanel from "@mindbuzz/web/features/game/components/create/HistoryPanel"
-import InitialAdminSetup from "@mindbuzz/web/features/game/components/create/InitialAdminSetup"
 import ManagersPanel from "@mindbuzz/web/features/game/components/create/ManagersPanel"
-import ManagerPassword from "@mindbuzz/web/features/game/components/create/ManagerPassword"
 import QuizzEditor from "@mindbuzz/web/features/game/components/create/QuizzEditor"
 import SelectQuizz from "@mindbuzz/web/features/game/components/create/SelectQuizz"
-import SsoSettingsPanel from "@mindbuzz/web/features/game/components/create/SsoSettingsPanel"
 import SettingsPanel from "@mindbuzz/web/features/game/components/create/SettingsPanel"
+import SsoSettingsPanel from "@mindbuzz/web/features/game/components/create/SsoSettingsPanel"
 import {
   useEvent,
   useSocket,
@@ -111,6 +109,7 @@ const ManagerAuthPage = () => {
   const [manager, setManager] = useState<ManagerSession | null>(null)
   const [activeTab, setActiveTab] = useState<ManagerTab>("quizzes")
   const [quizzList, setQuizzList] = useState<QuizzWithId[]>([])
+  const [materiaList, setMateriaList] = useState<{ id: number; nombre: string }[]>([])
   const [history, setHistory] = useState<QuizRunHistorySummary[]>([])
   const [settings, setSettings] = useState<ManagerSettings>({})
   const [editingQuizzId, setEditingQuizzId] = useState<string | null>(null)
@@ -132,6 +131,13 @@ const ManagerAuthPage = () => {
         : [...BASE_TABS],
     [manager?.role],
   )
+
+  useEffect(() => {
+    if (isAuth && socket?.connected) {
+      console.log("[ManagerPage] Pidiendo dashboard al servidor...");
+      socket.emit("manager:getDashboard");
+    }
+  }, [isAuth, socket?.connected]);
 
   useEvent("manager:bootstrapState", ({ requiresSetup }) => {
     setRequiresSetup(requiresSetup)
@@ -165,6 +171,10 @@ const ManagerAuthPage = () => {
 
   useEvent("manager:quizzList", (nextQuizzList) => {
     setQuizzList(nextQuizzList)
+  })
+
+  useEvent("manager:materiaList", (nextMateriaList) => {
+    setMateriaList(nextMateriaList)
   })
 
   useEvent("manager:historyList", (nextHistory) => {
@@ -238,6 +248,7 @@ const ManagerAuthPage = () => {
   })
 
   useEvent("manager:quizzCreated", (quizz) => {
+    console.log("Entrnaod a quizzCreated");
     setQuizzList((current) => {
       const filtered = current.filter((item) => item.id !== quizz.id)
 
@@ -314,8 +325,8 @@ const ManagerAuthPage = () => {
     socket?.emit("game:create", quizzId)
   }
 
-  const handleCreateQuizz = (subject: string) => {
-    socket?.emit("manager:createQuizz", { subject })
+  const handleCreateQuizz = (title: string, subject: string, materiaId?: number) => {
+    socket?.emit("manager:createQuizz", { title, subject, materiaId })
   }
 
   const handleDeleteQuizz = (quizzId: string) => {
@@ -574,6 +585,7 @@ const ManagerAuthPage = () => {
       ) : (
         <SelectQuizz
           quizzList={quizzList}
+          materiaList={materiaList}
           onCreate={handleCreateQuizz}
           onDelete={handleDeleteQuizz}
           onEdit={handleEditQuizz}

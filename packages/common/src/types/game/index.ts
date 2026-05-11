@@ -24,7 +24,9 @@ export type QuizzQuestion = {
 }
 
 export type Quizz = {
-  subject: string
+  subject: string,
+  title: string,
+  materiaId?: number,
   questions: QuizzQuestion[]
 }
 
