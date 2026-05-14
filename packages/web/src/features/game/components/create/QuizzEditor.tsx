@@ -2,7 +2,7 @@ import type { Quizz, QuizzWithId } from "@mindbuzz/common/types/game"
 import Button from "@mindbuzz/web/features/game/components/Button"
 import Input from "@mindbuzz/web/features/game/components/Input"
 import clsx from "clsx"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import toast from "react-hot-toast"
 
 type Props = {
@@ -34,7 +34,12 @@ const QuizzEditor = ({ quizz, onBack, onSave }: Props) => {
     })),
   })
 
+  const lastLoadedId = useRef<string | null>(null);
+
   useEffect(() => {
+    if (quizz.id === lastLoadedId.current) return;
+    
+    console.log(`[QuizzEditor] Cargando cuestionario ID: ${quizz.id} en el draft`);
     setDraft({
       subject: quizz.subject,
       title: quizz.title,
@@ -45,6 +50,7 @@ const QuizzEditor = ({ quizz, onBack, onSave }: Props) => {
         audio: question.audio ?? "",
       })),
     })
+    lastLoadedId.current = quizz.id;
   }, [quizz])
 
   const updateQuestion = (
@@ -108,14 +114,18 @@ const QuizzEditor = ({ quizz, onBack, onSave }: Props) => {
   const handleDeleteQuestion = (index: number) => () => {
     if (draft.questions.length === 1) {
       toast.error("A quiz needs at least one question")
-
       return
     }
 
-    setDraft((current) => ({
-      ...current,
-      questions: current.questions.filter((_, questionIndex) => questionIndex !== index),
-    }))
+    console.log(`[QuizzEditor] Eliminando pregunta en índice: ${index}`);
+    setDraft((current) => {
+      const nextQuestions = current.questions.filter((_, questionIndex) => questionIndex !== index);
+      console.log(`[QuizzEditor] Preguntas restantes: ${nextQuestions.length}`);
+      return {
+        ...current,
+        questions: nextQuestions,
+      };
+    })
   }
 
   const handleAddAnswer = (questionIndex: number) => () => {
@@ -186,6 +196,7 @@ const QuizzEditor = ({ quizz, onBack, onSave }: Props) => {
     }
 
   const handleSave = () => {
+    console.log("[QuizzEditor] Guardando cuestionario. Preguntas en el draft:", draft.questions.length);
     onSave(quizz.id, draft)
   }
 

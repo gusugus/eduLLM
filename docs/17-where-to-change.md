@@ -58,8 +58,31 @@
 
 ### Cambiar la pregunta de ejemplo al crear un quiz nuevo
 
-**Archivo:** `packages/socket/src/services/accountStore.ts`  
+**Archivo:** `packages/socket/src/services/accountStore.ts`
 **Método:** `createQuizz()`
+
+---
+
+## Generador de Preguntas (IA)
+
+### Cambiar la URL del servicio de generación (EduProxy)
+
+**Archivo:** `.env` (raíz)
+**Variable:** `VITE_URL_GENERATE_QUIZ`
+**Nota:** Asegúrate de incluir siempre el protocolo `http://` o `https://`. Si falta el protocolo, el navegador bloqueará la petición por seguridad (CORS).
+
+**Ejemplo correcto:**
+`VITE_URL_GENERATE_QUIZ=http://localhost:5000/generate-quiz`
+
+### Modificar el panel de generación en el frontend
+
+**Archivo:** `packages/web/src/features/game/components/create/QuestionGeneratorPanel.tsx`
+**Acciones:** Cambiar campos del formulario, validaciones previas o manejo de la respuesta de la IA.
+
+### Modificar la lógica de generación en el backend (Proxy)
+
+**Archivo:** `routes/quiz.py` (en el repositorio del proxy)
+**Acciones:** Cambiar cómo se procesan los temas, cómo se guardan las preguntas generadas en la base de datos o ajustar el logging.
 
 ---
 

@@ -189,7 +189,17 @@ class History {
       content: lines.join("\n"),
     }
   }
+
+  static deleteRun(runId: string) {
+    const db = Database.getDb()
+    const statement = db.prepare(`
+      DELETE FROM quiz_runs
+      WHERE id = ?
+    `)
+
+    statement.run(runId)
+    console.log(`[SQLite] Deleted run ${runId} to avoid redundancy.`)
+  }
 }
 
 export default History
-

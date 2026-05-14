@@ -57,45 +57,37 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const [clientId] = useState<string>(() => getClientId())
 
   useEffect(() => {
-    if (socket) {
-      return
-    }
+    const token = localStorage.getItem("token")
+    
+    const socketClient = io("/", {
+      path: "/ws",
+      autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      auth: {
+        clientId,
+        token,
+      },
+    })
 
-    let socketClient: TypedSocket | null = null
+    setSocket(socketClient)
 
-    try {
-      socketClient = io("/", {
-        path: "/ws",
-        autoConnect: false,
-        reconnection: true,
-        reconnectionAttempts: Infinity,
-        reconnectionDelay: 1000,
-        auth: {
-          clientId,
-          token: localStorage.getItem("token"),
-        },
-      })
+    socketClient.on("connect", () => {
+      setIsConnected(true)
+    })
 
-      setSocket(socketClient)
+    socketClient.on("disconnect", () => {
+      setIsConnected(false)
+    })
 
-      socketClient.on("connect", () => {
-        setIsConnected(true)
-      })
+    socketClient.on("connect_error", (err) => {
+      console.error("Connection error:", err.message)
+    })
 
-      socketClient.on("disconnect", () => {
-        setIsConnected(false)
-      })
-
-      socketClient.on("connect_error", (err) => {
-        console.error("Connection error:", err.message)
-      })
-    } catch (error) {
-      console.error("Failed to initialize socket:", error)
-    }
-
-    // eslint-disable-next-line consistent-return
     return () => {
-      socketClient?.disconnect()
+      socketClient.disconnect()
+      setSocket(null)
     }
   }, [clientId])
 
@@ -111,8 +103,13 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [socket])
 
+  // Función para reconectar manualmente (útil tras login)
   const reconnect = useCallback(() => {
     if (socket) {
+      // Forzamos actualización del token en el objeto auth antes de reconectar
+      const token = localStorage.getItem("token")
+      socket.auth = { ...socket.auth, token }
+      
       socket.disconnect()
       socket.connect()
     }
@@ -155,4 +152,3 @@ export const useEvent = <E extends keyof ServerToClientEvents>(
     }
   }, [socket, event, callback])
 }
-

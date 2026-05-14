@@ -7,6 +7,7 @@ export const pgPool = new Pool({
   user: process.env.PG_USER || "admin",
   password: process.env.PG_PASSWORD || "admin", // Asumimos las credenciales que se ven en el SQL: "admin"
   database: process.env.PG_DATABASE || "edu_llm",
+  max: 4, 
 });
 
 export async function initPg() {
