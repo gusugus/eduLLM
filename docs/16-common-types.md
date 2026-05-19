@@ -6,9 +6,9 @@
 
 ---
 
-## Propósito del paquete `@mindbuzz/common`
+## Propósito del paquete `@edullm/common`
 
-Contiene tipos TypeScript, validadores Zod y utilidades compartidas entre el backend (`@mindbuzz/socket`) y el frontend (`@mindbuzz/web`).
+Contiene tipos TypeScript, validadores Zod y utilidades compartidas entre el backend (`@edullm/socket`) y el frontend (`@edullm/web`).
 
 **Regla de oro:** Si algo necesita ser consistente entre cliente y servidor (tipos de datos, validaciones, constantes), vive aquí.
 

@@ -3,7 +3,7 @@
 ## ¿Qué se cambió?
 
 1. **Integración con base de datos PostgreSQL:** 
-   - Se añadió el paquete `pg` al servidor (`@mindbuzz/socket`).
+   - Se añadió el paquete `pg` al servidor (`@edullm/socket`).
    - Se creó el `pgDatabase.ts` para gestionar el pool de conexiones hacia `edu_llm` local.
 2. **Repositorio de estudiantes y Controller:**
    - Se expuso el endpoint `POST /api/students/login`.

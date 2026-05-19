@@ -1,6 +1,6 @@
 # 20 - Buenas Prácticas y Trabajo en Equipo
 
-Este documento consolida las directrices esenciales orientadas al desarrollo en equipos pequeños, asegurando que la arquitectura de MindBuzz se mantenga sólida y libre de regresiones.
+Este documento consolida las directrices esenciales orientadas al desarrollo en equipos pequeños, asegurando que la arquitectura de eduLLM se mantenga sólida y libre de regresiones.
 
 ## 1. Abierto a la Extensión, Cerrado a la Modificación (Open-Closed Principle)
 **El código que ya ha sido escrito, probado y funciona, no debe ser alterado innecesariamente.**

@@ -1,4 +1,4 @@
-# MindBuzz — Índice de Documentación
+# eduLLM — Índice de Documentación
 
 > Proyecto: quiz en tiempo real estilo Kahoot · Versión `1.10.2`  
 > Cada archivo de este directorio documenta **una sola capa o componente** del sistema.  
@@ -39,7 +39,7 @@ El sistema tiene tres capas principales y un paquete de tipos compartidos. El si
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    @mindbuzz/common                             │
+│                    @edullm/common                             │
 │              [16-common-types.md]                               │
 │   Tipos TypeScript + Validadores Zod + Utils de audio          │
 │   ← Todo el backend y frontend importa de aquí                 │
@@ -48,7 +48,7 @@ El sistema tiene tres capas principales y un paquete de tipos compartidos. El si
          ┌───────────────┴───────────────┐
          ▼                               ▼
 ┌────────────────────┐       ┌──────────────────────────────────┐
-│  @mindbuzz/socket  │       │        @mindbuzz/web              │
+│  @edullm/socket  │       │        @edullm/web              │
 │  (Backend Node.js) │       │       (Frontend React)            │
 │                    │       │                                   │
 │  [03] Config       │       │  [10] Router + Páginas            │

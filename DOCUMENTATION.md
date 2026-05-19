@@ -1,4 +1,4 @@
-# MindBuzz — Documentación Técnica Completa
+# eduLLM — Documentación Técnica Completa
 
 > Versión del proyecto: `1.10.2`  
 > Fecha de documentación: 2026-04-20  
@@ -11,7 +11,7 @@
 1. [Resumen Ejecutivo](#1-resumen-ejecutivo)
 2. [Arquitectura General](#2-arquitectura-general)
 3. [Estructura de Directorios](#3-estructura-de-directorios)
-4. [Paquete `@mindbuzz/socket` — Servidor WebSocket/HTTP](#4-paquete-mindbuzzsocket--servidor-websockethttp)
+4. [Paquete `@edullm/socket` — Servidor WebSocket/HTTP](#4-paquete-edullmsocket--servidor-websockethttp)
    - [Punto de entrada `index.ts`](#41-punto-de-entrada-indexts)
    - [Servicio `Database`](#42-servicio-database)
    - [Servicio `AccountStore`](#43-servicio-accountstore)
@@ -23,13 +23,13 @@
    - [Servicio `OidcStore`](#49-servicio-oidcstore)
    - [Servicio `Quizz` (helpers)](#410-servicio-quizz-helpers)
    - [Utils del socket](#411-utils-del-socket)
-5. [Paquete `@mindbuzz/common` — Tipos Compartidos](#5-paquete-mindbuzzcommon--tipos-compartidos)
+5. [Paquete `@edullm/common` — Tipos Compartidos](#5-paquete-edullmcommon--tipos-compartidos)
    - [Tipos del juego](#51-tipos-del-juego)
    - [Tipos de socket (eventos)](#52-tipos-de-socket-eventos)
    - [Tipos de estado (`STATUS`)](#53-tipos-de-estado-status)
    - [Validadores](#54-validadores)
    - [Utils comunes](#55-utils-comunes)
-6. [Paquete `@mindbuzz/web` — Frontend React](#6-paquete-mindbuzzweb--frontend-react)
+6. [Paquete `@edullm/web` — Frontend React](#6-paquete-edullmweb--frontend-react)
    - [Punto de entrada y router](#61-punto-de-entrada-y-router)
    - [Rutas y páginas](#62-rutas-y-páginas)
    - [Context: `SocketProvider`](#63-context-socketprovider)
@@ -71,7 +71,7 @@
 
 ## 1. Resumen Ejecutivo
 
-**MindBuzz** es una aplicación de quizzes en tiempo real estilo Kahoot. Un _manager_ crea y controla una partida; múltiples _jugadores_ se unen con un código de invitación de 6 dígitos y responden preguntas de forma simultánea. El sistema calcula puntajes en función del tiempo de respuesta.
+**eduLLM** es una aplicación de quizzes en tiempo real estilo Kahoot. Un _manager_ crea y controla una partida; múltiples _jugadores_ se unen con un código de invitación de 6 dígitos y responden preguntas de forma simultánea. El sistema calcula puntajes en función del tiempo de respuesta.
 
 **Stack tecnológico:**
 
@@ -94,7 +94,7 @@
 │                         BROWSER (Puerto 3000)                   │
 │                                                                 │
 │   ┌─────────────────────────────────────────┐                  │
-│   │        React SPA (@mindbuzz/web)         │                  │
+│   │        React SPA (@edullm/web)         │                  │
 │   │                                         │                  │
 │   │  SocketProvider (socket.io-client)       │                  │
 │   │  ┌────────────────┐ ┌──────────────────┐│                  │
@@ -109,7 +109,7 @@
                           │ (En dev: proxiado por Vite)
                           │ (En prod: proxiado por Nginx)
 ┌─────────────────────────▼───────────────────────────────────────┐
-│              Servidor Node.js (@mindbuzz/socket) Puerto 3001     │
+│              Servidor Node.js (@edullm/socket) Puerto 3001     │
 │                                                                 │
 │  ┌──────────────────────┐  ┌────────────────────────────────┐  │
 │  │   HTTP Server         │  │   Socket.IO Server             │  │
@@ -148,7 +148,7 @@
 ## 3. Estructura de Directorios
 
 ```
-MindBuzz/
+eduLLM/
 ├── package.json              # Scripts raíz (dev, build, start, lint)
 ├── pnpm-workspace.yaml       # Workspaces: packages/*
 ├── tsconfig.json             # TS config base del monorepo
@@ -171,7 +171,7 @@ MindBuzz/
 │   └── supervisord.conf      # Supervisor: gestiona Nginx + Node
 │
 └── packages/
-    ├── common/               # @mindbuzz/common — Tipos y utils compartidos
+    ├── common/               # @edullm/common — Tipos y utils compartidos
     │   └── src/
     │       ├── types/game/
     │       │   ├── index.ts  # Todos los tipos de dominio
@@ -182,7 +182,7 @@ MindBuzz/
     │       └── validators/
     │           └── auth.ts   # usernameValidator, inviteCodeValidator (Zod)
     │
-    ├── socket/               # @mindbuzz/socket — Servidor backend
+    ├── socket/               # @edullm/socket — Servidor backend
     │   └── src/
     │       ├── index.ts      # Servidor HTTP + Socket.IO (punto de entrada)
     │       ├── controllers/
@@ -204,7 +204,7 @@ MindBuzz/
     │           ├── game.ts         # withGame, createInviteCode, timeToPoint
     │           └── sleep.ts        # sleep(seconds): Promise
     │
-    └── web/                  # @mindbuzz/web — Frontend React
+    └── web/                  # @edullm/web — Frontend React
         ├── index.html
         ├── vite.config.ts    # Puerto 3000, proxy a :3001 para /ws /auth /media
         └── src/
@@ -281,7 +281,7 @@ MindBuzz/
 
 ---
 
-## 4. Paquete `@mindbuzz/socket` — Servidor WebSocket/HTTP
+## 4. Paquete `@edullm/socket` — Servidor WebSocket/HTTP
 
 ### 4.1 Punto de entrada `index.ts`
 
@@ -624,8 +624,8 @@ Lee y escribe archivos de configuración del filesystem. **No usa la BD.** Funci
   "clientSecret": "",
   "scopes": ["openid", "profile", "email"],
   "roleClaimPath": "groups",
-  "adminRoleValues": ["mindbuzz-admin"],
-  "managerRoleValues": ["mindbuzz-manager"]
+  "adminRoleValues": ["edullm-admin"],
+  "managerRoleValues": ["edullm-manager"]
 }
 ```
 
@@ -750,7 +750,7 @@ Utilidades de normalización y validación de quizzes.
 
 ---
 
-## 5. Paquete `@mindbuzz/common` — Tipos Compartidos
+## 5. Paquete `@edullm/common` — Tipos Compartidos
 
 ### 5.1 Tipos del juego
 
@@ -875,7 +875,7 @@ export const isAudioUrlAllowed = (value?: string | null) => ...
 
 ---
 
-## 6. Paquete `@mindbuzz/web` — Frontend React
+## 6. Paquete `@edullm/web` — Frontend React
 
 ### 6.1 Punto de entrada y router
 
@@ -1467,8 +1467,8 @@ CREATE INDEX idx_manager_oidc_identities_manager_id ON manager_oidc_identities(m
     "clientSecret": "tu-client-secret",
     "scopes": ["openid", "profile", "email"],
     "roleClaimPath": "groups",
-    "adminRoleValues": ["mindbuzz-admin"],
-    "managerRoleValues": ["mindbuzz-manager"]
+    "adminRoleValues": ["edullm-admin"],
+    "managerRoleValues": ["edullm-manager"]
   }
 }
 ```
@@ -1608,8 +1608,8 @@ CMD ["supervisord", "-c", "/etc/supervisord.conf"]
 
 ```yaml
 services:
-  mindbuzz:
-    image: kriziw/mindbuzz:latest
+  edullm:
+    image: kriziw/edullm:latest
     ports:
       - "3000:3000"
     volumes:

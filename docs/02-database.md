@@ -8,7 +8,7 @@
 
 ## 1. SQLite (Historial y Partidas)
 
-MindBuzz usa **SQLite** a través de la API nativa de **Node.js 24** (`node:sqlite`). No requiere drivers externos ni instalar `better-sqlite3` — es parte del runtime.
+eduLLM usa **SQLite** a través de la API nativa de **Node.js 24** (`node:sqlite`). No requiere drivers externos ni instalar `better-sqlite3` — es parte del runtime.
 
 ## 2. PostgreSQL (Cuentas y Estudiantes)
 
@@ -22,7 +22,7 @@ Toda la interacción con la base de datos pasa por el singleton `Database`, que 
 
 | Entorno | Ruta del archivo `history.db` |
 |---------|-------------------------------|
-| Desarrollo (CWD = `packages/socket/`) | `../../config/history.db` → `MindBuzz/config/history.db` |
+| Desarrollo (CWD = `packages/socket/`) | `../../config/history.db` → `eduLLM/config/history.db` |
 | Docker (`CONFIG_PATH=/app/config`) | `/app/config/history.db` |
 
 El directorio se crea automáticamente si no existe.
@@ -229,7 +229,7 @@ Todos los índices aceleran las consultas por `manager_id`, que es la forma más
 
 ## Migraciones
 
-MindBuzz no usa un sistema de migraciones formal. En su lugar, `initializeSchema()` usa:
+eduLLM no usa un sistema de migraciones formal. En su lugar, `initializeSchema()` usa:
 
 1. **`CREATE TABLE IF NOT EXISTS`** → crea tablas solo si no existen
 2. **`ensureColumn()`** → agrega columnas si no están presentes:
