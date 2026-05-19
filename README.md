@@ -1,13 +1,4 @@
-<p align="center">
-  <img width="450" height="120" src="https://raw.githubusercontent.com/kriziw/MindBuzz/main/.github/logo.svg" alt="MindBuzz logo">
-</p>
-
-<p align="center">
-  <img alt="Visitor Badge" src="https://api.visitorbadge.io/api/visitors?path=https://github.com/kriziw/MindBuzz/edit/main/README.md&countColor=%2337d67a">
-  <img src="https://img.shields.io/docker/pulls/kriziw/mindbuzz?style=for-the-badge&color=37d67a" alt="Docker Pulls">
-</p>
-
-MindBuzz is a self-hosted quiz platform for classrooms, team sessions, events, and internal training. This repository is an enhanced fork of the original [Ralex91/Rahoot](https://github.com/Ralex91/Rahoot), expanding the manager experience with richer quiz administration, run history, exports, settings, media support, and mobile reconnect improvements.
+**eduLLM** is an open-source, free-license educational quiz platform for classrooms, team sessions, events, and internal training. This repository is an enhanced fork of [MindBuzz](https://github.com/kriziw/MindBuzz), expanding the manager experience with AI-assisted quiz generation, improved question editing, PostgreSQL persistence, and various other improvements over the original project.
 
 Public documentation is available at [kriziw.github.io/mindbuzz](https://kriziw.github.io/mindbuzz/).
 
