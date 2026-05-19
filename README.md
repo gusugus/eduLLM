@@ -69,3 +69,4 @@ Full technical documentation can be found in the following files:
 ## Attribution
 
 This repository builds on the original [MindBuzz](https://github.com/kriziw/MindBuzz) and [Ralex91/Rahoot](https://github.com/Ralex91/Rahoot) projects. If you are evaluating eduLLM for the first time, please consider checking out the upstream projects and giving credit to the original work as well.
+
