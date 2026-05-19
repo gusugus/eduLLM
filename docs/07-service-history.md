@@ -96,7 +96,7 @@ Correct Answer Texts | Is Correct | Points Earned | Total Points | Final Rank
 
 ## Normalización de formato legacy: `normalizeRun()`
 
-Versiones antiguas de MindBuzz guardaban:
+Versiones antiguas de eduLLM guardaban:
 ```json
 { "correctAnswer": 1, "correctAnswerText": "Da Vinci" }
 ```

@@ -5,7 +5,7 @@
 
 ---
 
-## ¿Qué es MindBuzz?
+## ¿Qué es eduLLM?
 
 Aplicación de quizzes en tiempo real estilo Kahoot. Un **manager** crea y controla la partida; múltiples **jugadores** se unen con un código de 6 dígitos y responden preguntas simultáneamente.
 
@@ -37,7 +37,7 @@ Aplicación de quizzes en tiempo real estilo Kahoot. Un **manager** crea y contr
 │                     BROWSER (Puerto 3000)                       │
 │                                                                 │
 │   ┌─────────────────────────────────────────┐                  │
-│   │        React SPA (@mindbuzz/web)         │                  │
+│   │        React SPA (@edullm/web)         │                  │
 │   │                                         │                  │
 │   │  SocketProvider (socket.io-client)       │                  │
 │   │  ┌────────────────┐ ┌──────────────────┐│                  │
@@ -52,7 +52,7 @@ Aplicación de quizzes en tiempo real estilo Kahoot. Un **manager** crea y contr
                           │ (En dev: proxiado por Vite)
                           │ (En prod: proxiado por Nginx)
 ┌─────────────────────────▼───────────────────────────────────────┐
-│           Servidor Node.js (@mindbuzz/socket) Puerto 3001        │
+│           Servidor Node.js (@edullm/socket) Puerto 3001        │
 │                                                                 │
 │  HTTP Server                   Socket.IO Server                 │
 │  ├── GET /auth/oidc/status      ├── path: /ws                   │
@@ -83,11 +83,11 @@ Aplicación de quizzes en tiempo real estilo Kahoot. Un **manager** crea y contr
 ## Estructura de paquetes (monorepo)
 
 ```
-MindBuzz/                        ← raíz del monorepo
+eduLLM/                        ← raíz del monorepo
 ├── packages/
-│   ├── common/                  ← @mindbuzz/common  (tipos + utils compartidos)
-│   ├── socket/                  ← @mindbuzz/socket  (servidor Node.js)
-│   └── web/                     ← @mindbuzz/web     (frontend React)
+│   ├── common/                  ← @edullm/common  (tipos + utils compartidos)
+│   ├── socket/                  ← @edullm/socket  (servidor Node.js)
+│   └── web/                     ← @edullm/web     (frontend React)
 ├── config/                      ← datos de configuración (fuera del código)
 ├── media/                       ← archivos de audio subidos
 ├── docker/                      ← nginx.conf + supervisord.conf

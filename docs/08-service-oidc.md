@@ -12,7 +12,7 @@
 
 OpenID Connect (OIDC) permite que los managers se autentiquen usando un proveedor externo (Google, Azure AD, Okta, Keycloak, etc.) en lugar de una contraseña local.
 
-MindBuzz implementa el flujo **Authorization Code con PKCE** — el estándar recomendado para aplicaciones server-side.
+eduLLM implementa el flujo **Authorization Code con PKCE** — el estándar recomendado para aplicaciones server-side.
 
 ---
 
@@ -120,23 +120,23 @@ Si un atacante intercepta el `code`, no puede canjearlo porque no tiene el `code
 
 ```typescript
 // Config: roleClaimPath = "groups"
-//         adminRoleValues = ["mindbuzz-admin"]
-//         managerRoleValues = ["mindbuzz-manager"]
+//         adminRoleValues = ["edullm-admin"]
+//         managerRoleValues = ["edullm-manager"]
 
-// El claim en el JWT: { groups: ["mindbuzz-admin", "devs"] }
+// El claim en el JWT: { groups: ["edullm-admin", "devs"] }
 
 const claimValue = getNestedClaim(claims, "groups")
-// → ["mindbuzz-admin", "devs"]
+// → ["edullm-admin", "devs"]
 
 const normalizedRoleValues = normalizeRoleValues(claimValue)
-// → ["mindbuzz-admin", "devs"]
+// → ["edullm-admin", "devs"]
 
 // ¿Alguno de los valores está en adminRoleValues?
 → "admin"
 // ¿Alguno está en managerRoleValues?
 → "manager"
 // Ninguno
-→ null → error "Your account does not have a mapped MindBuzz role"
+→ null → error "Your account does not have a mapped eduLLM role"
 ```
 
 `getNestedClaim` permite paths anidados: `"realm_access.roles"` accede a `jwt.realm_access.roles`.
@@ -189,7 +189,7 @@ Un manager puede tener **múltiples identidades** (diferentes proveedores).
 ## Validación del ID Token
 
 ```typescript
-// IMPORTANTE: MindBuzz NO verifica la firma criptográfica del JWT
+// IMPORTANTE: eduLLM NO verifica la firma criptográfica del JWT
 // Confía en el TLS del canal y en que solo el proveedor conoce el client_secret
 
 private static validateIdToken(idToken, discovery, nonce) {
