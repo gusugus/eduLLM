@@ -20,6 +20,7 @@ import HistoryPanel from "@mindbuzz/web/features/game/components/create/HistoryP
 import ManagersPanel from "@mindbuzz/web/features/game/components/create/ManagersPanel"
 import QuizzEditor from "@mindbuzz/web/features/game/components/create/QuizzEditor"
 import SelectQuizz from "@mindbuzz/web/features/game/components/create/SelectQuizz"
+import QuestionGeneratorPanel from "@mindbuzz/web/features/game/components/create/QuestionGeneratorPanel"
 import SettingsPanel from "@mindbuzz/web/features/game/components/create/SettingsPanel"
 import SsoSettingsPanel from "@mindbuzz/web/features/game/components/create/SsoSettingsPanel"
 import {
@@ -49,6 +50,7 @@ const BASE_TABS = [
   { id: "quizzes", label: "Quizzes" },
   { id: "history", label: "History" },
   { id: "settings", label: "Settings" },
+  { id: "generate", label: "Crear preguntas" },
 ] as const
 
 const ADMIN_TAB = { id: "managers", label: "Managers" } as const
@@ -326,6 +328,7 @@ const ManagerAuthPage = () => {
   }
 
   const handleCreateQuizz = (title: string, subject: string, materiaId?: number) => {
+    console.log(`[ManagerPage] Creando nuevo quizz: ${title}`);
     socket?.emit("manager:createQuizz", { title, subject, materiaId })
   }
 
@@ -334,6 +337,7 @@ const ManagerAuthPage = () => {
   }
 
   const handleUpdateQuizz = (quizzId: string, quizz: Quizz) => {
+    console.log(`[ManagerPage] Iniciando guardado de quizz: ${quizzId}`, quizz);
     socket?.emit("manager:updateQuizz", { quizzId, quizz })
   }
 
@@ -345,6 +349,7 @@ const ManagerAuthPage = () => {
   const handleSelectTab = (tab: ManagerTab) => {
     setActiveTab(tab)
     setEditingQuizzId(null)
+    console.log(`[ManagerPage] Cambiando a pestaña: ${tab}`);
 
     if (tab === "managers") {
       socket?.emit("manager:listManagers")
@@ -582,6 +587,8 @@ const ManagerAuthPage = () => {
           isTesting={isTestingOidcConfig}
           testResult={oidcTestResult}
         />
+      ) : activeTab === "generate" ? (
+        <QuestionGeneratorPanel managerId={manager?.id} materiaList={materiaList} />
       ) : (
         <SelectQuizz
           quizzList={quizzList}

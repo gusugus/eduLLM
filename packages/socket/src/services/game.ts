@@ -4,14 +4,15 @@ import type {
   ManagerSession,
   ManagerSettings,
   Player,
-  QuizzWithId,
   QuizRunHistoryDetail,
+  QuizzWithId,
 } from "@mindbuzz/common/types/game"
 import type { Server, Socket } from "@mindbuzz/common/types/game/socket"
-import { STATUS } from "@mindbuzz/common/types/game/status"
 import type { Status, StatusDataMap } from "@mindbuzz/common/types/game/status"
+import { STATUS } from "@mindbuzz/common/types/game/status"
 import { usernameValidator } from "@mindbuzz/common/validators/auth"
 import History from "@mindbuzz/socket/services/history"
+import { pgPool } from "@mindbuzz/socket/services/pgDatabase"
 import Registry from "@mindbuzz/socket/services/registry"
 import TutorService from "@mindbuzz/socket/services/tutorService"
 import { createInviteCode, timeToPoint } from "@mindbuzz/socket/utils/game"
@@ -51,6 +52,7 @@ class Game {
   quizz: QuizzWithId
   players: Player[]
   historyRunId: string | null
+  postgresPartidaId: number | null
   startedAt: string
 
   round: {
@@ -100,6 +102,7 @@ class Game {
 
     this.players = []
     this.historyRunId = null
+    this.postgresPartidaId = null
     this.startedAt = new Date().toISOString()
 
     this.round = {
@@ -181,13 +184,16 @@ class Game {
 
     socket.join(this.gameId)
 
-    const playerData = {
+    const playerData: Player = {
       id: socket.id,
       clientId: socket.handshake.auth.clientId,
+      userId: socket.data.user?.id || (socket as any).user?.id,
       connected: true,
       username,
       points: 0,
     }
+
+    console.log(`[Game] Jugador unido: ${username}, ID Usuario Postgres: ${playerData.userId || 'N/A'}`);
 
     this.players.push(playerData)
     this.cancelPendingPlayerRemoval(playerData.clientId)
@@ -433,6 +439,19 @@ class Game {
 
     this.started = true
 
+    // Registrar inicio en Postgres
+    try {
+      console.log(`[Game] Iniciando sesión en Postgres para quiz ${this.quizz.id} con código ${this.inviteCode}...`);
+      const res = await pgPool.query(
+        "CALL profesor.partidas_iniciar($1, $2, $3, NULL, NULL)",
+        [parseInt(this.quizz.id), parseInt(this.manager.accountId), this.inviteCode]
+      );
+      this.postgresPartidaId = res.rows[0]?.pn_id_partida;
+      console.log(`[Game] Partida registrada en Postgres con ID: ${this.postgresPartidaId}`);
+    } catch (error) {
+      console.error("[Game] Error al iniciar partida en Postgres:", error);
+    }
+
     this.broadcastStatus(STATUS.SHOW_START, {
       time: 3,
       subject: this.quizz.subject,
@@ -556,6 +575,7 @@ class Game {
     this.players = sortedPlayers
 
     this.historyQuestions.push({
+      idPregunta: question.id,
       questionNumber: this.round.currentQuestion + 1,
       question: question.question,
       answers: question.answers,
@@ -570,12 +590,15 @@ class Game {
 
         return {
           playerId: player.id,
+          userId: player.userId,
+          idUsuario: player.userId,
           username: player.username,
           answerId: playerAnswer?.answerId ?? null,
           answerText:
             playerAnswer && question.answers[playerAnswer.answerId]
               ? question.answers[playerAnswer.answerId]
               : null,
+          time: playerAnswer?.timeMs ?? 0,
           isCorrect: player.lastCorrect,
           points: player.lastPoints,
           totalPoints: player.points,
@@ -630,10 +653,13 @@ class Game {
       return
     }
 
+    const timeMs = Date.now() - this.round.startTime
+
     this.round.playersAnswers.push({
       playerId: player.id,
       answerId,
       points: timeToPoint(this.round.startTime, question.time),
+      timeMs,
     })
 
     this.sendStatus(socket.id, STATUS.WAIT, {
@@ -819,7 +845,25 @@ class Game {
     const runId = uuid()
     const endedAt = new Date().toISOString()
 
-    History.addRun(this.manager.accountId, {
+    const leaderboard = this.leaderboard.map((player, index) => {
+      // Calcular respuestas correctas para el reporte de Postgres
+      const correctAnswersCount = this.historyQuestions.reduce((count, q) => {
+        const response = q.responses.find(r => r.playerId === player.id);
+        return response?.isCorrect ? count + 1 : count;
+      }, 0);
+
+      return {
+        playerId: player.id,
+        userId: player.userId,
+        idUsuario: player.userId,
+        rank: index + 1,
+        username: player.username,
+        points: player.points,
+        correctAnswers: correctAnswersCount
+      };
+    });
+
+    const historyData = {
       id: runId,
       gameId: this.gameId,
       quizzId: this.quizz.id,
@@ -829,16 +873,34 @@ class Game {
       totalPlayers: this.players.length,
       questionCount: this.quizz.questions.length,
       winner: this.leaderboard[0]?.username ?? null,
-      leaderboard: this.leaderboard.map((player, index) => ({
-        playerId: player.id,
-        rank: index + 1,
-        username: player.username,
-        points: player.points,
-      })),
+      leaderboard,
       questions: this.historyQuestions,
-    })
+    }
+
+    History.addRun(this.manager.accountId, historyData)
 
     this.historyRunId = runId
+
+    // Migrar a Postgres al finalizar usando el procedimiento completo
+    if (this.postgresPartidaId) {
+      console.log(`[Game] Subiendo resultados finales a Postgres (Partida: ${this.postgresPartidaId})...`);
+      console.log(`[Game] Datos a subir a Postgres: ${JSON.stringify(historyData)} `);
+      pgPool.query(
+        "CALL profesor.partidas_finalizar_completo($1, $2, NULL)",
+        [this.postgresPartidaId, JSON.stringify(historyData)]
+      ).then((res) => {
+        const error = res.rows[0]?.pv_error;
+        if (error) {
+          console.error("[Game] Error al finalizar partida en Postgres:", error);
+        } else {
+          console.log(`[Game] Resultados guardados en Postgres con éxito (Normalizado).`);
+          // Borrar de SQLite tras éxito en Postgres para evitar redundancia
+          History.deleteRun(runId);
+        }
+      }).catch(err => {
+        console.error("[Game] Error crítico al subir a Postgres:", err);
+      });
+    }
 
     return runId
   }

@@ -1,6 +1,7 @@
 export type Player = {
   id: string
   clientId: string
+  userId?: number
   connected: boolean
   username: string
   points: number
@@ -10,9 +11,11 @@ export type Answer = {
   playerId: string
   answerId: number
   points: number
+  timeMs: number
 }
 
 export type QuizzQuestion = {
+  id?: number
   question: string
   image?: string
   video?: string
@@ -118,6 +121,7 @@ export type GameUpdateQuestion = {
 
 export type QuizRunLeaderboardEntry = {
   playerId: string
+  userId?: number
   rank: number
   username: string
   points: number
@@ -125,6 +129,7 @@ export type QuizRunLeaderboardEntry = {
 
 export type QuizRunQuestionResponse = {
   playerId: string
+  userId?: number
   username: string
   answerId: number | null
   answerText: string | null

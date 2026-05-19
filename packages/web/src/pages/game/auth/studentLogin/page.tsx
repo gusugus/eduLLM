@@ -5,6 +5,7 @@ import { usePlayerStore } from "@mindbuzz/web/features/game/stores/player"
 import { useState } from "react"
 import toast from "react-hot-toast"
 import { useNavigate } from "react-router"
+import { useSocket } from "@mindbuzz/web/features/game/contexts/socketProvider"
 
 const StudentLoginPage = () => {
   const [username, setUsername] = useState("")
@@ -12,6 +13,7 @@ const StudentLoginPage = () => {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = usePlayerStore()
+  const { reconnect } = useSocket()
 
   const handleLogin = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -40,6 +42,7 @@ const StudentLoginPage = () => {
         
         // GUARDAR TOKEN
         localStorage.setItem("token", data.token)
+        reconnect()
 
         // Passport devuelve los datos dentro de data.user
         login({ 

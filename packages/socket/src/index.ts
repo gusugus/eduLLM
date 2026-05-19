@@ -660,6 +660,7 @@ io.on("connection", (socket) => {
   })
 
   socket.on("manager:updateQuizz", async ({ quizzId, quizz }) => {
+    console.log(`[Socket] Recibido manager:updateQuizz para ID: ${quizzId}. Preguntas: ${quizz.questions?.length}`);
     const manager = requireAuthenticatedManager(socket)
 
     if (!manager) {

@@ -56,9 +56,11 @@ Gestionan usuarios, roles, estados y periodos.
 | **`profesor.pruebas_listar`** | FUNCTION | `p_id_usuario INT` | TABLE(...) - Filtra por estado 'ACT'. |
 | **`profesor.pruebas_editar`** | PROCEDURE | `p_id_prueba INT`, `p_titulo TEXT`, `p_configuracion JSONB` | *(sin OUT)* |
 | **`profesor.pruebas_eliminar`** | PROCEDURE | `p_id_prueba INT` | *(sin OUT)* - Marca como 'ELI'. |
-| **`profesor.preguntas_agregar`** | PROCEDURE | `Pn_id_prueba`, `Pv_texto`, `Pj_opciones`, `Pn_respuesta_correcta`, `Pn_puntaje`, `Pn_tiempo_limite` | `Pn_id_pregunta`, `Pv_error` |
+| **`profesor.preguntas_agregar`** | PROCEDURE | `Pn_id_prueba`, `Pv_texto`, `Pj_opciones` (JSON con flag `correcta`), `Pn_puntaje`, `Pn_tiempo_limite` | `Pn_id_pregunta`, `Pv_error` |
 | **`profesor.preguntas_listar`** | FUNCTION | `p_id_prueba INT` | TABLE(...) - Filtra por estado 'ACT'. |
-| **`profesor.preguntas_eliminar`** | PROCEDURE | `p_id_prueba INT` | *(sin OUT)* - Marca como 'ELI'. |
+| **`profesor.preguntas_eliminar`** | PROCEDURE | `p_id_prueba INT` | *(sin OUT)* - Marca como 'ELI' todas las preguntas de una prueba. |
+| **`profesor.preguntas_editar`** | PROCEDURE | `Pn_id_pregunta INT`, `Pv_texto TEXT`, `Pj_opciones JSONB`, `Pn_puntaje INT`, `Pn_tiempo_limite INT`, `OUT Pv_error TEXT` | Edita una pregunta existente y sus opciones. |
+| **`profesor.pregunta_eliminar_individual`** | PROCEDURE | `p_id_pregunta INT` | Marca una sola pregunta como 'ELI'. |
 | **`profesor.partidas_iniciar`** | PROCEDURE | `Pn_id_prueba`, `Pn_id_profesor` | `Pn_id_partida`, `Pv_codigo_acceso`, `Pv_error` |
 
 ---
