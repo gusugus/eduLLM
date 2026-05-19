@@ -1,4 +1,3 @@
-
 **eduLLM** is an open-source, free-license educational quiz platform for classrooms, team sessions, events, and internal training. This repository is an enhanced fork of [MindBuzz](https://github.com/kriziw/MindBuzz), expanding the manager experience with AI-assisted quiz generation, improved question editing, PostgreSQL persistence, and various other improvements over the original project.
 
 Public documentation is available at [kriziw.github.io/mindbuzz](https://kriziw.github.io/mindbuzz/).
