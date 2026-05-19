@@ -1,6 +1,6 @@
 # 18 - Preguntas Frecuentes (Common Questions)
 
-Este documento recopila dudas comunes sobre la arquitectura, el modelo de datos y el funcionamiento general de la plataforma MindBuzz.
+Este documento recopila dudas comunes sobre la arquitectura, el modelo de datos y el funcionamiento general de la plataforma eduLLM.
 
 ## ¿Cuál es la diferencia entre un `admin` y un `manager`?
 

@@ -26,13 +26,13 @@ const inContainerPath = process.env.CONFIG_PATH
 const getPath = (path: string = "") =>
   inContainerPath
     ? resolve(inContainerPath, path)            // Docker: /app/config/...
-    : resolve(process.cwd(), "../../config", path) // Dev: MindBuzz/config/...
+    : resolve(process.cwd(), "../../config", path) // Dev: eduLLM/config/...
 
 // Ruta a media/
 const getMediaPath = (path: string = "") =>
   inContainerPath
     ? resolve(inContainerPath, "..", "media", path) // Docker: /app/media/...
-    : resolve(process.cwd(), "../../media", path)   // Dev: MindBuzz/media/...
+    : resolve(process.cwd(), "../../media", path)   // Dev: eduLLM/media/...
 ```
 
 **Variable de entorno `CONFIG_PATH`:** Si está definida, todas las rutas se calculan relativas a su valor. En Docker se configura como `/app/config`.
@@ -91,8 +91,8 @@ media/               ← crea directorio vacío
     "clientSecret": "",
     "scopes": ["openid", "profile", "email"],
     "roleClaimPath": "groups",
-    "adminRoleValues": ["mindbuzz-admin"],
-    "managerRoleValues": ["mindbuzz-manager"]
+    "adminRoleValues": ["edullm-admin"],
+    "managerRoleValues": ["edullm-manager"]
   }
 }
 ```

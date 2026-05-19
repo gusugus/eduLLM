@@ -7,7 +7,7 @@
 
 ## Principio general: sin cookies
 
-MindBuzz **no usa cookies en ninguna parte**. La autenticación se gestiona con:
+eduLLM **no usa cookies en ninguna parte**. La autenticación se gestiona con:
 - **Memoria del proceso Node.js** (para la sesión del manager)
 - **`localStorage` del navegador** (para persistir el estado entre recargas)
 - **Socket.IO auth** (para identificar el dispositivo en el handshake)

@@ -1,6 +1,0 @@
-<svg width="128" height="120" viewBox="0 0 128 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M16 36C16 22.7452 26.7452 12 40 12H68C95.6142 12 118 34.3858 118 62C118 89.6142 95.6142 112 68 112H59L34 120V112H40C26.7452 112 16 101.255 16 88V36Z" fill="#FF9900"/>
-  <path d="M102 26C109.484 27.7826 115.348 33.6516 117 41" stroke="#FF9900" stroke-width="8" stroke-linecap="round"/>
-  <path d="M108 12C116.587 14.0293 123.271 20.7126 125 29.2" stroke="#FF9900" stroke-width="8" stroke-linecap="round"/>
-  <text x="55" y="82" text-anchor="middle" fill="white" font-family="Trebuchet MS, Verdana, Arial, sans-serif" font-size="54" font-weight="900">B</text>
-</svg>
