@@ -69,8 +69,8 @@ const StudentLoginPage = () => {
   return (
     <div className="flex w-full max-w-sm flex-col items-center justify-center space-y-6">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-2">Panel de Login</h2>
-        <p className="text-white/80">Ingrese</p>
+        <h2 className="text-3xl font-bold text-purple-300 mb-2">Panel de Login</h2>
+        <p className="text-purple/80">Ingrese</p>
       </div>
       
       <Form onSubmit={handleLogin}>
