@@ -1,0 +1,10 @@
+<svg width="760" height="160" viewBox="0 0 760 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M42 30C42 18.9543 50.9543 10 62 10H110C147.555 10 178 40.4446 178 78C178 115.555 147.555 146 110 146H99L68 156V146H62C50.9543 146 42 137.046 42 126V30Z" fill="#FF9900"/>
+  <path d="M169 28C181.904 31.0733 192.018 41.1873 195 54" stroke="#FF9900" stroke-width="10" stroke-linecap="round"/>
+  <path d="M183 6C201.778 10.0868 216.413 24.7222 220 43" stroke="#FF9900" stroke-width="10" stroke-linecap="round"/>
+  <text x="86" y="109" text-anchor="middle" fill="white" font-family="Trebuchet MS, Verdana, Arial, sans-serif" font-size="68" font-weight="900">B</text>
+  <g transform="translate(236 0) skewX(-10)">
+    <text x="0" y="104" fill="#FF9900" font-family="Trebuchet MS, Verdana, Arial, sans-serif" font-size="88" font-weight="900" letter-spacing="-2">MindBuzz</text>
+  </g>
+  <path d="M602 118L720 92L726 118L608 144L602 118Z" fill="#FF9900"/>
+</svg>

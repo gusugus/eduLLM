@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "noEmit": true,
+    "noErrorTruncation": true,
+    "esModuleInterop": true,
+    "paths": {
+      "@mindbuzz/common/*": ["./packages/common/src/*"],
+      "@mindbuzz/socket/*": ["./packages/socket/src/*"],
+      "@mindbuzz/web/*": ["./packages/web/src/*"]
+    },
+    "strict": true,
+    "strictNullChecks": true
+  }
+}
+

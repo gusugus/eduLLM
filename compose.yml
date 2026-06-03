@@ -1,0 +1,12 @@
+services:
+  mindbuzz:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kriziw/mindbuzz:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config:/app/config
+      - ./media:/app/media
+

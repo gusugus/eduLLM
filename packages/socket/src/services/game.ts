@@ -1,0 +1,818 @@
+import type {
+  ActiveManagerGame,
+  Answer,
+  ManagerSession,
+  ManagerSettings,
+  Player,
+  QuizzWithId,
+  QuizRunHistoryDetail,
+} from "@mindbuzz/common/types/game"
+import type { Server, Socket } from "@mindbuzz/common/types/game/socket"
+import { STATUS } from "@mindbuzz/common/types/game/status"
+import type { Status, StatusDataMap } from "@mindbuzz/common/types/game/status"
+import { usernameValidator } from "@mindbuzz/common/validators/auth"
+import History from "@mindbuzz/socket/services/history"
+import Registry from "@mindbuzz/socket/services/registry"
+import { createInviteCode, timeToPoint } from "@mindbuzz/socket/utils/game"
+import sleep from "@mindbuzz/socket/utils/sleep"
+import { v4 as uuid } from "uuid"
+
+const registry = Registry.getInstance()
+const PLAYER_RECONNECT_GRACE_MS = 60_000
+
+const isCorrectAnswer = (selectedAnswerId: number, correctAnswerIds: number[]) =>
+  correctAnswerIds.includes(selectedAnswerId)
+
+class Game {
+  io: Server
+
+  gameId: string
+  manager: {
+    id: string
+    clientId: string
+    accountId: string
+    username: string
+    connected: boolean
+  }
+  inviteCode: string
+  started: boolean
+  defaultAudio?: string
+
+  lastBroadcastStatus: { name: Status; data: StatusDataMap[Status] } | null =
+    null
+  managerStatus: { name: Status; data: StatusDataMap[Status] } | null = null
+  playerStatus: Map<string, { name: Status; data: StatusDataMap[Status] }> =
+    new Map()
+
+  leaderboard: Player[]
+  tempOldLeaderboard: Player[] | null
+
+  quizz: QuizzWithId
+  players: Player[]
+  historyRunId: string | null
+  startedAt: string
+
+  round: {
+    currentQuestion: number
+    playersAnswers: Answer[]
+    startTime: number
+  }
+
+  cooldown: {
+    active: boolean
+    ms: number
+  }
+
+  historyQuestions: QuizRunHistoryDetail["questions"]
+  pendingPlayerRemovals: Map<string, ReturnType<typeof setTimeout>>
+
+  constructor(
+    io: Server,
+    socket: Socket,
+    manager: ManagerSession,
+    quizz: QuizzWithId,
+    settings: ManagerSettings,
+  ) {
+    if (!io) {
+      throw new Error("Socket server not initialized")
+    }
+
+    this.io = io
+    this.gameId = uuid()
+    this.manager = {
+      id: "",
+      clientId: "",
+      accountId: "",
+      username: "",
+      connected: false,
+    }
+    this.inviteCode = ""
+    this.started = false
+    this.defaultAudio = settings.defaultAudio
+
+    this.lastBroadcastStatus = null
+    this.managerStatus = null
+    this.playerStatus = new Map()
+
+    this.leaderboard = []
+    this.tempOldLeaderboard = null
+
+    this.players = []
+    this.historyRunId = null
+    this.startedAt = new Date().toISOString()
+
+    this.round = {
+      playersAnswers: [],
+      currentQuestion: 0,
+      startTime: 0,
+    }
+
+    this.cooldown = {
+      active: false,
+      ms: 0,
+    }
+
+    this.historyQuestions = []
+    this.pendingPlayerRemovals = new Map()
+
+    const roomInvite = createInviteCode()
+    this.inviteCode = roomInvite
+    this.manager = {
+      id: socket.id,
+      clientId: socket.handshake.auth.clientId,
+      accountId: manager.id,
+      username: manager.username,
+      connected: true,
+    }
+    this.quizz = quizz
+
+    socket.join(this.gameId)
+    socket.emit("manager:gameCreated", {
+      gameId: this.gameId,
+      inviteCode: roomInvite,
+    })
+
+    console.log(
+      `New game created: ${roomInvite} subject: ${this.quizz.subject}`,
+    )
+  }
+
+  broadcastStatus<T extends Status>(status: T, data: StatusDataMap[T]) {
+    const statusData = { name: status, data }
+    this.lastBroadcastStatus = statusData
+    this.io.to(this.gameId).emit("game:status", statusData)
+  }
+
+  sendStatus<T extends Status>(
+    target: string,
+    status: T,
+    data: StatusDataMap[T],
+  ) {
+    const statusData = { name: status, data }
+
+    if (this.manager.id === target) {
+      this.managerStatus = statusData
+    } else {
+      this.playerStatus.set(target, statusData)
+    }
+
+    this.io.to(target).emit("game:status", statusData)
+  }
+
+  join(socket: Socket, username: string) {
+    const isAlreadyConnected = this.players.find(
+      (p) => p.clientId === socket.handshake.auth.clientId,
+    )
+
+    if (isAlreadyConnected) {
+      socket.emit("game:errorMessage", "Player already connected")
+
+      return
+    }
+
+    const result = usernameValidator.safeParse(username)
+
+    if (result.error) {
+      socket.emit("game:errorMessage", result.error.issues[0].message)
+
+      return
+    }
+
+    socket.join(this.gameId)
+
+    const playerData = {
+      id: socket.id,
+      clientId: socket.handshake.auth.clientId,
+      connected: true,
+      username,
+      points: 0,
+    }
+
+    this.players.push(playerData)
+    this.cancelPendingPlayerRemoval(playerData.clientId)
+
+    this.io.to(this.manager.id).emit("manager:newPlayer", playerData)
+    this.io.to(this.gameId).emit("game:totalPlayers", this.players.length)
+
+    socket.emit("game:successJoin", this.gameId)
+  }
+
+  kickPlayer(socket: Socket, playerId: string) {
+    if (this.manager.id !== socket.id) {
+      return
+    }
+
+    const player = this.players.find((p) => p.id === playerId)
+
+    if (!player) {
+      return
+    }
+
+    this.cancelPendingPlayerRemoval(player.clientId)
+    this.players = this.players.filter((p) => p.id !== playerId)
+    this.playerStatus.delete(playerId)
+
+    this.io.in(playerId).socketsLeave(this.gameId)
+    this.io
+      .to(player.id)
+      .emit("game:reset", "You have been kicked by the manager")
+    this.io.to(this.manager.id).emit("manager:playerKicked", player.id)
+
+    this.io.to(this.gameId).emit("game:totalPlayers", this.players.length)
+  }
+
+  getActiveManagerGame(currentClientId: string): ActiveManagerGame {
+    return {
+      gameId: this.gameId,
+      inviteCode: this.inviteCode,
+      subject: this.quizz.subject,
+      started: this.started,
+      controlledByCurrentSession: this.manager.clientId === currentClientId,
+    }
+  }
+
+  isOwnedByManager(managerId: string) {
+    return this.manager.accountId === managerId
+  }
+
+  reconnect(socket: Socket) {
+    const reconnectingClientId = socket.handshake.auth.clientId
+
+    if (this.manager.clientId === reconnectingClientId) {
+      this.reconnectManager(socket)
+
+      return
+    }
+
+    const isPlayer = this.players.some(
+      (player) => player.clientId === reconnectingClientId,
+    )
+
+    if (isPlayer) {
+      this.reconnectPlayer(socket)
+
+      return
+    }
+
+    this.reconnectManager(socket)
+  }
+
+  private reconnectManager(socket: Socket) {
+    if (this.manager.clientId !== socket.handshake.auth.clientId) {
+      socket.emit("game:reset", "Game is controlled from another session")
+
+      return
+    }
+
+    if (this.manager.connected) {
+      socket.emit("game:reset", "Manager already connected")
+
+      return
+    }
+
+    this.activateManagerControl(socket)
+    registry.reactivateGame(this.gameId)
+    console.log(`Manager reconnected to game ${this.inviteCode}`)
+  }
+
+  takeOverManager(socket: Socket) {
+    const activeManagerSocketId = this.manager.id
+
+    if (activeManagerSocketId && activeManagerSocketId !== socket.id) {
+      this.io
+        .to(activeManagerSocketId)
+        .emit("game:reset", "Game taken over from another session")
+      this.io.in(activeManagerSocketId).socketsLeave(this.gameId)
+    }
+
+    this.activateManagerControl(socket)
+    registry.reactivateGame(this.gameId)
+  }
+
+  private activateManagerControl(socket: Socket) {
+    socket.join(this.gameId)
+    this.manager.id = socket.id
+    this.manager.clientId = socket.handshake.auth.clientId
+    this.manager.connected = true
+
+    const status = this.managerStatus ||
+      this.lastBroadcastStatus || {
+        name: STATUS.WAIT,
+        data: { text: "Waiting for players" },
+      }
+
+    socket.emit("manager:successReconnect", {
+      gameId: this.gameId,
+      currentQuestion: {
+        current: this.round.currentQuestion + 1,
+        total: this.quizz.questions.length,
+      },
+      status,
+      players: this.players,
+    })
+    socket.emit("game:totalPlayers", this.players.length)
+  }
+
+  private reconnectPlayer(socket: Socket) {
+    const { clientId } = socket.handshake.auth
+    const player = this.players.find((p) => p.clientId === clientId)
+
+    if (!player) {
+      return
+    }
+
+    if (player.connected) {
+      socket.emit("game:reset", "Player already connected")
+
+      return
+    }
+
+    socket.join(this.gameId)
+    this.cancelPendingPlayerRemoval(player.clientId)
+
+    const oldSocketId = player.id
+    player.id = socket.id
+    player.connected = true
+
+    if (!this.started) {
+      this.io.to(this.manager.id).emit("manager:removePlayer", oldSocketId)
+      this.io.to(this.manager.id).emit("manager:newPlayer", { ...player })
+    }
+
+    const status = this.playerStatus.get(oldSocketId) ||
+      this.lastBroadcastStatus || {
+        name: STATUS.WAIT,
+        data: { text: "Waiting for players" },
+      }
+
+    if (this.playerStatus.has(oldSocketId)) {
+      const oldStatus = this.playerStatus.get(oldSocketId)!
+      this.playerStatus.delete(oldSocketId)
+      this.playerStatus.set(socket.id, oldStatus)
+    }
+
+    socket.emit("player:successReconnect", {
+      gameId: this.gameId,
+      currentQuestion: {
+        current: this.round.currentQuestion + 1,
+        total: this.quizz.questions.length,
+      },
+      status,
+      player: {
+        username: player.username,
+        points: player.points,
+      },
+    })
+    socket.emit("game:totalPlayers", this.players.length)
+    console.log(
+      `Player ${player.username} reconnected to game ${this.inviteCode}`,
+    )
+  }
+
+  startCooldown(seconds: number): Promise<void> {
+    if (this.cooldown.active) {
+      return Promise.resolve()
+    }
+
+    this.cooldown.active = true
+    let count = seconds - 1
+
+    return new Promise<void>((resolve) => {
+      const cooldownTimeout = setInterval(() => {
+        if (!this.cooldown.active || count <= 0) {
+          this.cooldown.active = false
+          clearInterval(cooldownTimeout)
+          resolve()
+
+          return
+        }
+
+        this.io.to(this.gameId).emit("game:cooldown", count)
+        count -= 1
+      }, 1000)
+    })
+  }
+
+  abortCooldown() {
+    this.cooldown.active &&= false
+  }
+
+  async start(socket: Socket) {
+    if (this.manager.id !== socket.id) {
+      return
+    }
+
+    if (this.started) {
+      return
+    }
+
+    this.removeDisconnectedWaitingPlayers()
+
+    if (this.players.length === 0) {
+      socket.emit("game:errorMessage", "No players connected")
+
+      return
+    }
+
+    this.started = true
+
+    this.broadcastStatus(STATUS.SHOW_START, {
+      time: 3,
+      subject: this.quizz.subject,
+    })
+
+    await sleep(3)
+
+    this.io.to(this.gameId).emit("game:startCooldown")
+    await this.startCooldown(3)
+
+    this.newRound()
+  }
+
+  async newRound() {
+    const question = this.quizz.questions[this.round.currentQuestion]
+
+    if (!this.started) {
+      return
+    }
+
+    this.playerStatus.clear()
+
+    this.io.to(this.gameId).emit("game:updateQuestion", {
+      current: this.round.currentQuestion + 1,
+      total: this.quizz.questions.length,
+    })
+
+    this.managerStatus = null
+    this.broadcastStatus(STATUS.SHOW_PREPARED, {
+      totalAnswers: question.answers.length,
+      questionNumber: this.round.currentQuestion + 1,
+    })
+
+    await sleep(2)
+
+    if (!this.started) {
+      return
+    }
+
+    this.broadcastStatus(STATUS.SHOW_QUESTION, {
+      question: question.question,
+      image: question.image,
+      cooldown: question.cooldown,
+    })
+
+    await sleep(question.cooldown)
+
+    if (!this.started) {
+      return
+    }
+
+    this.round.startTime = Date.now()
+
+    this.broadcastStatus(STATUS.SELECT_ANSWER, {
+      question: question.question,
+      answers: question.answers,
+      multipleCorrect: question.solutions.length > 1,
+      image: question.image,
+      video: question.video,
+      audio: question.audio ?? this.defaultAudio,
+      time: question.time,
+      totalPlayer: this.players.length,
+    })
+
+    await this.startCooldown(question.time)
+
+    if (!this.started) {
+      return
+    }
+
+    this.showResults(question)
+  }
+
+  showResults(question: QuizzWithId["questions"][number]) {
+    const oldLeaderboard =
+      this.leaderboard.length === 0
+        ? this.players.map((p) => ({ ...p }))
+        : this.leaderboard.map((p) => ({ ...p }))
+
+    const totalType = this.round.playersAnswers.reduce(
+      (acc: Record<number, number>, { answerId }) => {
+        acc[answerId] = (acc[answerId] || 0) + 1
+
+        return acc
+      },
+      {},
+    )
+
+    const sortedPlayers = this.players
+      .map((player) => {
+        const playerAnswer = this.round.playersAnswers.find(
+          (a) => a.playerId === player.id,
+        )
+
+        const isCorrect = playerAnswer
+          ? isCorrectAnswer(playerAnswer.answerId, question.solutions)
+          : false
+
+        const points =
+          playerAnswer && isCorrect ? Math.round(playerAnswer.points) : 0
+
+        player.points += points
+
+        return { ...player, lastCorrect: isCorrect, lastPoints: points }
+      })
+      .sort((a, b) => b.points - a.points)
+
+    this.players = sortedPlayers
+
+    this.historyQuestions.push({
+      questionNumber: this.round.currentQuestion + 1,
+      question: question.question,
+      answers: question.answers,
+      correctAnswers: question.solutions,
+      correctAnswerTexts: question.solutions.map(
+        (solution) => question.answers[solution],
+      ),
+      responses: sortedPlayers.map((player) => {
+        const playerAnswer = this.round.playersAnswers.find(
+          (answer) => answer.playerId === player.id,
+        )
+
+        return {
+          playerId: player.id,
+          username: player.username,
+          answerId: playerAnswer?.answerId ?? null,
+          answerText:
+            playerAnswer && question.answers[playerAnswer.answerId]
+              ? question.answers[playerAnswer.answerId]
+              : null,
+          isCorrect: player.lastCorrect,
+          points: player.lastPoints,
+          totalPoints: player.points,
+        }
+      }),
+    })
+
+    sortedPlayers.forEach((player, index) => {
+      const rank = index + 1
+      const aheadPlayer = sortedPlayers[index - 1]
+
+      this.sendStatus(player.id, STATUS.SHOW_RESULT, {
+        correct: player.lastCorrect,
+        message: player.lastCorrect ? "Nice!" : "Too bad",
+        points: player.lastPoints,
+        myPoints: player.points,
+        rank,
+        aheadOfMe: aheadPlayer ? aheadPlayer.username : null,
+      })
+    })
+
+    this.sendStatus(this.manager.id, STATUS.SHOW_RESPONSES, {
+      question: question.question,
+      responses: totalType,
+      correct: question.solutions,
+      answers: question.answers,
+      image: question.image,
+    })
+
+    this.leaderboard = sortedPlayers
+    this.tempOldLeaderboard = oldLeaderboard
+
+    this.round.playersAnswers = []
+  }
+  selectAnswer(socket: Socket, answerId: number) {
+    const player = this.players.find((player) => player.id === socket.id)
+    const question = this.quizz.questions[this.round.currentQuestion]
+
+    if (!player) {
+      return
+    }
+
+    if (this.round.playersAnswers.find((p) => p.playerId === socket.id)) {
+      return
+    }
+
+    if (
+      !Number.isInteger(answerId) ||
+      answerId < 0 ||
+      answerId >= question.answers.length
+    ) {
+      return
+    }
+
+    this.round.playersAnswers.push({
+      playerId: player.id,
+      answerId,
+      points: timeToPoint(this.round.startTime, question.time),
+    })
+
+    this.sendStatus(socket.id, STATUS.WAIT, {
+      text: "Waiting for the players to answer",
+    })
+
+    socket
+      .to(this.gameId)
+      .emit("game:playerAnswer", this.round.playersAnswers.length)
+
+    this.io.to(this.gameId).emit("game:totalPlayers", this.players.length)
+
+    if (this.round.playersAnswers.length === this.players.length) {
+      this.abortCooldown()
+    }
+  }
+
+  nextRound(socket: Socket) {
+    if (!this.started) {
+      return
+    }
+
+    if (socket.id !== this.manager.id) {
+      return
+    }
+
+    if (!this.quizz.questions[this.round.currentQuestion + 1]) {
+      return
+    }
+
+    this.round.currentQuestion += 1
+    this.newRound()
+  }
+
+  abortRound(socket: Socket) {
+    if (!this.started) {
+      return
+    }
+
+    if (socket.id !== this.manager.id) {
+      return
+    }
+
+    this.abortCooldown()
+  }
+
+  showLeaderboard() {
+    const isLastRound =
+      this.round.currentQuestion + 1 === this.quizz.questions.length
+
+    if (isLastRound) {
+      this.started = false
+      const runId = this.persistHistory()
+
+      this.broadcastStatus(STATUS.FINISHED, {
+        subject: this.quizz.subject,
+        top: this.leaderboard.slice(0, 3),
+        runId,
+      })
+
+      return
+    }
+
+    const oldLeaderboard = this.tempOldLeaderboard
+      ? this.tempOldLeaderboard
+      : this.leaderboard
+
+    this.sendStatus(this.manager.id, STATUS.SHOW_LEADERBOARD, {
+      oldLeaderboard: oldLeaderboard.slice(0, 5),
+      leaderboard: this.leaderboard.slice(0, 5),
+    })
+
+    this.tempOldLeaderboard = null
+  }
+
+  endGame(socket: Socket) {
+    if (socket.id !== this.manager.id) {
+      return
+    }
+
+    this.terminate("Quiz ended by manager")
+  }
+
+  terminate(reason: string) {
+    this.abortCooldown()
+    this.started = false
+    this.clearPendingPlayerRemovals()
+    this.revokeManagerControl(reason)
+
+    this.io.to(this.gameId).emit("game:reset", reason)
+    registry.removeGame(this.gameId)
+  }
+
+  revokeManagerControl(reason: string) {
+    const activeManagerSocketId = this.manager.id
+
+    if (activeManagerSocketId) {
+      this.io.to(activeManagerSocketId).emit("game:reset", reason)
+      this.io.in(activeManagerSocketId).socketsLeave(this.gameId)
+    }
+
+    this.manager.id = ""
+    this.manager.connected = false
+  }
+
+  schedulePlayerRemoval(playerId: string) {
+    const player = this.players.find((p) => p.id === playerId)
+
+    if (!player || this.started) {
+      return
+    }
+
+    this.cancelPendingPlayerRemoval(player.clientId)
+
+    const timeout = setTimeout(() => {
+      const pendingPlayer = this.players.find(
+        (p) => p.clientId === player.clientId,
+      )
+
+      if (!pendingPlayer || pendingPlayer.connected || this.started) {
+        return
+      }
+
+      this.players = this.players.filter(
+        (p) => p.clientId !== player.clientId,
+      )
+      this.playerStatus.delete(pendingPlayer.id)
+      this.pendingPlayerRemovals.delete(player.clientId)
+
+      this.io.to(this.manager.id).emit("manager:removePlayer", pendingPlayer.id)
+      this.io.to(this.gameId).emit("game:totalPlayers", this.players.length)
+
+      console.log(
+        `Removed player ${pendingPlayer.username} from game ${this.gameId} after reconnect timeout`,
+      )
+    }, PLAYER_RECONNECT_GRACE_MS)
+
+    this.pendingPlayerRemovals.set(player.clientId, timeout)
+  }
+
+  cancelPendingPlayerRemoval(clientId: string) {
+    const timeout = this.pendingPlayerRemovals.get(clientId)
+
+    if (!timeout) {
+      return
+    }
+
+    clearTimeout(timeout)
+    this.pendingPlayerRemovals.delete(clientId)
+  }
+
+  clearPendingPlayerRemovals() {
+    this.pendingPlayerRemovals.forEach((timeout) => clearTimeout(timeout))
+    this.pendingPlayerRemovals.clear()
+  }
+
+  private removeDisconnectedWaitingPlayers() {
+    if (this.started) {
+      return
+    }
+
+    const disconnectedPlayers = this.players.filter((player) => !player.connected)
+
+    if (disconnectedPlayers.length === 0) {
+      return
+    }
+
+    disconnectedPlayers.forEach((player) => {
+      this.cancelPendingPlayerRemoval(player.clientId)
+      this.playerStatus.delete(player.id)
+      this.io.to(this.manager.id).emit("manager:removePlayer", player.id)
+    })
+
+    this.players = this.players.filter((player) => player.connected)
+    this.io.to(this.gameId).emit("game:totalPlayers", this.players.length)
+  }
+
+  private persistHistory() {
+    if (this.historyRunId) {
+      return this.historyRunId
+    }
+
+    const runId = uuid()
+    const endedAt = new Date().toISOString()
+
+    History.addRun(this.manager.accountId, {
+      id: runId,
+      gameId: this.gameId,
+      quizzId: this.quizz.id,
+      subject: this.quizz.subject,
+      startedAt: this.startedAt,
+      endedAt,
+      totalPlayers: this.players.length,
+      questionCount: this.quizz.questions.length,
+      winner: this.leaderboard[0]?.username ?? null,
+      leaderboard: this.leaderboard.map((player, index) => ({
+        playerId: player.id,
+        rank: index + 1,
+        username: player.username,
+        points: player.points,
+      })),
+      questions: this.historyQuestions,
+    })
+
+    this.historyRunId = runId
+
+    return runId
+  }
+}
+
+export default Game
+
